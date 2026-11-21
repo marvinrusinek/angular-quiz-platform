@@ -47,15 +47,19 @@ export class QqcOrchTimerService {
    * this cannot resolve to a different question than the one on screen.
    */
   private expiredQuestionText(host: Host, targetIndex?: number): string | null {
+    const hasTarget = typeof targetIndex === 'number' && targetIndex >= 0;
+    const idx = hasTarget ? targetIndex : host.currentQuestionIndex();
+    const inDisplayOrder = (this.quizService as any)?.getQuestionsInDisplayOrder?.()?.[idx as number]
+      ?.questionText;
+
+    // An explicit target names THE question that expired; it must never be replaced by whatever the host happens to be
+    // showing (which can be a different question while a navigation settles).
+    if (hasTarget) {
+      return typeof inDisplayOrder === 'string' && inDisplayOrder.length > 0 ? inDisplayOrder : null;
+    }
+
     const direct = host.currentQuestion()?.questionText;
     if (typeof direct === 'string' && direct.length > 0) return direct;
-
-    const idx =
-      typeof targetIndex === 'number' && targetIndex >= 0
-        ? targetIndex
-        : host.currentQuestionIndex();
-    const inDisplayOrder = (this.quizService as any)?.getQuestionsInDisplayOrder?.()?.[idx]
-      ?.questionText;
 
     return typeof inDisplayOrder === 'string' && inDisplayOrder.length > 0 ? inDisplayOrder : null;
   }

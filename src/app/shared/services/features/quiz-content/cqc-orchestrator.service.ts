@@ -127,12 +127,18 @@ export class CqcOrchestratorService {
     // microtask. Reading it first prevents stale Q(N) timer expiry from
     // writing Q(N)'s FET into Q(N+1)'s heading after navigation.
     const sigIdx = host.questionIndex?.();
-    const idx =
+    const hostIdx =
       typeof sigIdx === 'number' && sigIdx >= 0
         ? sigIdx
         : host.currentIndex >= 0
           ? host.currentIndex
           : (host.quizService.getCurrentQuestionIndex?.() ?? host.currentQuestionIndexValue ?? 0);
+    // An expiry that was ALREADY TRUE ON ARRIVAL (returning to a question whose deadline had passed) names its own
+    // question. This host's index can still read the question just LEFT while the navigation settles, and recording the
+    // timeout against it marked a question that never expired (and was still inside its own deadline) as timed out for
+    // the rest of the session, which locked its options when the user came back to it.
+    const arrivalIdx = host.timerService.expiredOnArrivalSig?.();
+    const idx = typeof arrivalIdx === 'number' && arrivalIdx >= 0 ? arrivalIdx : hostIdx;
 
     // A previously-answered question being revisited keeps its question text
     // even if its timer expires again — only a first-time (unanswered) expiry

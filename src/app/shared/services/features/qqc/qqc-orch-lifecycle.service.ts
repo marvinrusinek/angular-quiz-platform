@@ -359,24 +359,32 @@ export class QqcOrchLifecycleService {
     });
   }
 
+  /**
+   * The timer's expired$ event.
+   *
+   * A REVISIT to a question whose deadline had already passed (expireImmediately()) fires this same event, but it is
+   * not a fresh reveal — that happened on the visit that earned it. host.timedOut is reset to false on every question
+   * transition (resetUIForNewQuestion), so its own guard cannot tell a revisit apart from a first expiry; only
+   * expiredOnArrivalSig can. Re-running the full reveal pipeline here forced "Please click the Next button..." back
+   * over the natural nav-derived message on every Previous/return to an expired question.
+   *
+   * It is checked WITHOUT comparing against this host's current index. On Previous the timer attributes the expiry to
+   * the question being returned to while the host's own index can still be the one just left; comparing the two let
+   * the arrival expiry through, and the reveal was then requested for the question just left (still inside its
+   * deadline), which the server rejected — leaving that question in the error state. A live expiry always clears the
+   * arrival marker first (the timer sets it to -1 before emitting), so this never swallows a genuine one.
+   */
+  onTimerExpired(host: Host): void {
+    if (host.timerService.expiredOnArrivalSig() !== -1) return;
+    host.onQuestionTimedOut(host.normalizeIndex(host.currentQuestionIndex() ?? 0));
+  }
+
   /** Wire the timer-expired and timer-stop subscriptions. */
   private wireTimerSubscriptions(host: Host): void {
     host.subscriptionWiring.createTimerExpiredSubscription({
       destroyRef: host.destroyRef,
       timerExpired$: host.timerService.expired$,
-      onExpired: () => {
-        const idx = host.normalizeIndex(host.currentQuestionIndex() ?? 0);
-        // A REVISIT to a question whose deadline had already passed
-        // (expireImmediately()) fires this same expired$ event, but it is not a
-        // fresh reveal — that happened on the visit that earned it. host.timedOut
-        // is reset to false on every question transition (resetUIForNewQuestion),
-        // so its own guard cannot tell a revisit apart from a first expiry; only
-        // expiredOnArrivalSig can. Re-running the full reveal pipeline here forced
-        // "Please click the Next button..." back over the natural nav-derived
-        // message on every Previous/return to an expired question.
-        if (host.timerService.expiredOnArrivalSig() === idx) return;
-        host.onQuestionTimedOut(idx);
-      }
+      onExpired: () => this.onTimerExpired(host)
     });
 
     host.subscriptionWiring.createTimerStopSubscription({

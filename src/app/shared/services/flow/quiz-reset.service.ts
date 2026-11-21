@@ -220,6 +220,8 @@ export class QuizResetService {
     this.quizService.resetAll();
     this.quizStateService.reset();
     this.explanationTextService.resetExplanationState();
+    // A different quiz: nothing remembered about the previous quiz's answered questions may carry over.
+    this.explanationTextService.answeredFetByQuestion.clear();
     this.selectedOptionService.clearAllSelectionsForQuiz(routeQuizId);
 
     // Deadlines are keyed by question index, which means nothing across quizzes.
@@ -249,6 +251,8 @@ export class QuizResetService {
   performRestartServiceResets(quizId: string, totalQuestions: number): void {
     this.quizService.resetAll();
     this.quizService.resetScore();
+    // A restart is a new attempt (possibly reshuffled): the previous attempt's composed explanations are discarded.
+    this.explanationTextService.answeredFetByQuestion.clear();
 
     // A restart is a NEW attempt, not a redisplay: every answer, dot and
     // progress record is about to be discarded. The old signed deadlines go

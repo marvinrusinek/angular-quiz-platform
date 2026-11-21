@@ -142,6 +142,12 @@ export class ExplanationTextService {
   // heading can fall back to it for an expired question.
   public readonly timeoutFetByIndex = new Map<number, string>();
 
+  // DURABLE composed FET for questions the verdict says were ANSWERED CORRECTLY. Moving between questions purges the
+  // primary stores (resetExplanationState), so without this a correctly answered question that is revisited could only fall
+  // back to the verdict's RAW explanation. Keyed by quiz + question TEXT (not display index), so a reshuffle, a retake or
+  // another quiz can never hand one question another's explanation.
+  public readonly answeredFetByQuestion = new Map<string, string>();
+
   get explanationsInitialized(): boolean {
     return this.formatter.explanationsInitializedSig();
   }

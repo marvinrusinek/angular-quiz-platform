@@ -74,6 +74,14 @@ export interface HeadingInputs {
    *  trusted alone to restore an earned reveal after a reload. Optional so
    *  existing callers are unaffected — undefined behaves as `false`. */
   verdictEarnedReveal?: boolean;
+
+  /** The authoritative verdict says this question was ANSWERED CORRECTLY: resolved with the completion condition met
+   *  (single/trueFalse: the pick was correct; multi-answer: every correct option is selected). Unlike
+   *  `verdictEarnedReveal` it is false for a genuine timeout (an expired verdict), a wrong single pick and an
+   *  incomplete multi-answer selection. A revisit of a correctly answered question shows its stored explanation again,
+   *  so this exempts it from the revisit guard; every other revisit is unchanged. Optional: undefined behaves as
+   *  `false`. */
+  verdictAnsweredCorrectly?: boolean;
 }
 
 /**
@@ -82,8 +90,10 @@ export interface HeadingInputs {
  * Rules distilled from this codebase's behavior (resolveDisplayText /
  * computeIntendedQText / the multi-answer heading rule + the §5 contract):
  *  - Cold load (options not ready) never shows the FET — only the question.
- *  - On a revisit (navigated here, not re-answered) the FET is suppressed even
- *    for a resolved/timed-out question; it shows only on the live answer view.
+ *  - On a revisit (navigated here, not re-answered) the FET is suppressed for a
+ *    timed-out, wrong, partial or unanswered question; it shows only on the live
+ *    answer view. A question the verdict says was ANSWERED CORRECTLY is the
+ *    exception: its stored explanation shows again on a revisit.
  *  - A first-time timeout on the live view reveals the FET (no interaction).
  *  - Otherwise the FET shows only after a real interaction AND the question is
  *    "done": multi-answer fully selected, or single-answer answered correctly.
@@ -109,7 +119,14 @@ export function shouldShowFet(i: HeadingInputs): boolean {
   // and is still suppressed by the branches below). Without this exclusion the
   // fast-path (Q2+) timeout was blocked because isNavigatingToPrevious can remain
   // stale-true after a forward Next and interactedThisVisit is false on a timeout.
-  if (i.isNavigatingToPrevious && !i.interactedThisVisit && !i.isTimedOut) {
+  // EXCEPT a question the authoritative verdict says was answered correctly: returning to it shows its stored explanation
+  // again (rendering it is not a new interaction — nothing is marked, selected or scored by showing it).
+  if (
+    i.isNavigatingToPrevious &&
+    !i.interactedThisVisit &&
+    !i.isTimedOut &&
+    i.verdictAnsweredCorrectly !== true
+  ) {
     return false;
   }
   if (i.isTimedOut) {

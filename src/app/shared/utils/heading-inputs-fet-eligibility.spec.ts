@@ -293,7 +293,9 @@ describe('FET eligibility: incorrect/incomplete attempts must not earn the revea
     expect(headingFor(over)).toBe(QUESTION);
   });
 
-  it('a same-session Previous-revisit after a wrong-then-correct answer still shows the question (existing revisit contract, unaffected)', () => {
+  // SUPERSEDED RULE: this used to pin "a Previous-revisit of a correctly answered question shows the QUESTION". A question
+  // the verdict says was answered correctly now shows its explanation again on a revisit (see heading-revisit-correct.spec).
+  it('a same-session Previous-revisit of a correctly answered question shows its explanation again', () => {
     const over: DepsOverrides = {
       questionType: QuestionType.SingleAnswer,
       verdictPhase: 'resolved',
@@ -304,7 +306,49 @@ describe('FET eligibility: incorrect/incomplete attempts must not earn the revea
       interactedThisVisit: false,
       isNavigatingToPrevious: true
     };
-    expect(showsFetFor(over)).toBe(false);
-    expect(headingFor(over)).toBe(QUESTION);
+    expect(showsFetFor(over)).toBe(true);
+    expect(headingFor(over)).toBe(AUTHORIZED_EXPLANATION);
+  });
+
+  it('a same-session Previous-revisit of a wrong, partial or timed-out question still shows the question', () => {
+    const wrong: DepsOverrides = {
+      questionType: QuestionType.SingleAnswer,
+      selectedOptionTexts: [WRONG_TEXT],
+      verdictPhase: 'resolved',
+      isResolvedCorrect: false,
+      selectedVerdicts: [[WRONG_TEXT.toLowerCase(), false]],
+      explanation: AUTHORIZED_EXPLANATION,
+      hasInteracted: true,
+      interactedThisVisit: false,
+      isNavigatingToPrevious: true
+    };
+    expect(showsFetFor(wrong)).toBe(false);
+    expect(headingFor(wrong)).toBe(QUESTION);
+
+    const partial: DepsOverrides = {
+      questionType: QuestionType.MultipleAnswer,
+      selectedOptionTexts: [RIGHT_TEXT],
+      verdictPhase: 'incomplete',
+      selectedVerdicts: [[RIGHT_TEXT.toLowerCase(), true]],
+      remainingCorrectCount: 1,
+      hasInteracted: true,
+      interactedThisVisit: false,
+      isNavigatingToPrevious: true
+    };
+    expect(showsFetFor(partial)).toBe(false);
+
+    const expired: DepsOverrides = {
+      questionType: QuestionType.SingleAnswer,
+      selectedOptionTexts: [RIGHT_TEXT],
+      verdictPhase: 'expired',
+      isResolvedCorrect: true,
+      selectedVerdicts: [[RIGHT_TEXT.toLowerCase(), true]],
+      explanation: AUTHORIZED_EXPLANATION,
+      hasInteracted: true,
+      interactedThisVisit: false,
+      isNavigatingToPrevious: true
+    };
+    expect(showsFetFor(expired)).toBe(false);
+    expect(headingFor(expired)).toBe(QUESTION);
   });
 });

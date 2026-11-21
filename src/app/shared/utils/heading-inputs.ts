@@ -134,6 +134,11 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
   const verdictEarnedReveal =
     !!verdict && (verdict.phase === 'expired' || verdictComplete === true);
 
+  // ANSWERED CORRECTLY, as the verdict states it — not a timeout, not a wrong or partial pick. Only this lets a revisit
+  // show the stored explanation again (see shouldShowFet's revisit guard).
+  const verdictAnsweredCorrectly =
+    !!verdict && verdict.phase !== 'expired' && verdictComplete === true;
+
   // Single-answer "answered correctly", from the user's OWN verdicted pick.
   //
   // `idle` used to fall back to matching the selection against the pristine
@@ -187,9 +192,22 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
   // So these stores supply the words, and the gates below decide whether the
   // words may be shown at all. Composing the authorized explanation is the next
   // step of the explanation-pipeline migration, not this one.
+  // The composed explanation of a correctly answered question is remembered (by quiz + question text) the moment it exists,
+  // because moving between questions purges the primary stores. A revisit then re-shows the SAME composed text instead of
+  // the verdict's raw explanation. Only text from the primary stores is remembered, and only for a verdict-correct answer.
+  const primaryFet =
+    (ets.formattedExplanations?.[idx]?.explanation ?? '') || (ets.fetByIndex?.get?.(idx) ?? '');
+  // The composed text names options BY NUMBER ("Option 2 is correct because…"), so it is only valid for the option order
+  // it was composed for. The key therefore carries the displayed option order as well as the quiz and the question text:
+  // a reshuffled or retaken attempt (a different order) can never be handed another attempt's numbering.
+  const optionOrder = ((dq.options ?? []) as any[]).map((o) => norm(o?.text)).join('|');
+  const answeredKey = `${d.quizService.quizId ?? ''}::${qText}::${optionOrder}`;
+  if (verdictAnsweredCorrectly && primaryFet.trim().length > 0) {
+    ets.answeredFetByQuestion?.set?.(answeredKey, primaryFet);
+  }
   const _fetHtml = withTerminalPeriod(
-    (ets.formattedExplanations?.[idx]?.explanation ?? '') ||
-      (ets.fetByIndex?.get?.(idx) ?? '') ||
+    primaryFet ||
+      (verdictAnsweredCorrectly ? (ets.answeredFetByQuestion?.get?.(answeredKey) ?? '') : '') || // durable (purge-proof)
       (ets.timeoutFetByIndex?.get?.(idx) ?? '') || // durable timeout FET (purge-proof)
       // Last resort: the verdict's own raw explanation, so an authorized reveal
       // is never silently blank when the formatter has not run.
@@ -236,6 +254,7 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
     isNavigatingToPrevious: d.quizNavigationService.isNavigatingToPreviousSig?.() === true,
     interactedThisVisit: d.quizStateService.wasInteractedThisVisit?.(idx) === true,
     deferFeedback: d.feedbackPolicyService?.feedbackMode?.() === 'deferred',
-    verdictEarnedReveal
+    verdictEarnedReveal,
+    verdictAnsweredCorrectly
   };
 }

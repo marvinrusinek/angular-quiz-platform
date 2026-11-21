@@ -301,16 +301,62 @@ describe('heading-model: verdictEarnedReveal restores the FET across a reload', 
     expect(shouldShowFet(inputs({}))).toBe(false); // field absent (undefined) behaves as false
   });
 
-  it('a same-session Previous-revisit still suppresses the FET even when the verdict is earned', () => {
+  it('a same-session Previous-revisit still suppresses the FET when the earned verdict is not an ANSWERED-CORRECTLY one (e.g. a timeout)', () => {
     // The revisit guard runs BEFORE the verdictEarnedReveal branch is ever
-    // reached — this is the regression this fix must never reintroduce: a
-    // rehydrated earned verdict must not leak the FET into a plain revisit.
+    // reached: an earned verdict alone (which also covers an expired timeout)
+    // must not leak the FET into a plain revisit.
     expect(
       shouldShowFet(
         inputs({
           isNavigatingToPrevious: true,
           interactedThisVisit: false,
           verdictEarnedReveal: true
+        })
+      )
+    ).toBe(false);
+    expect(
+      shouldShowFet(
+        inputs({
+          isNavigatingToPrevious: true,
+          interactedThisVisit: false,
+          verdictEarnedReveal: true,
+          verdictAnsweredCorrectly: false
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('a Previous-revisit of a question the verdict says was ANSWERED CORRECTLY shows the FET again, without a new interaction', () => {
+    expect(
+      shouldShowFet(
+        inputs({
+          isNavigatingToPrevious: true,
+          interactedThisVisit: false,
+          verdictEarnedReveal: true,
+          verdictAnsweredCorrectly: true
+        })
+      )
+    ).toBe(true);
+    // Interview Mode still always shows the question text
+    expect(
+      shouldShowFet(
+        inputs({
+          isNavigatingToPrevious: true,
+          interactedThisVisit: false,
+          verdictEarnedReveal: true,
+          verdictAnsweredCorrectly: true,
+          deferFeedback: true
+        })
+      )
+    ).toBe(false);
+    // and without options rendered (cold load) it never shows
+    expect(
+      shouldShowFet(
+        inputs({
+          isNavigatingToPrevious: true,
+          verdictEarnedReveal: true,
+          verdictAnsweredCorrectly: true,
+          optionsReady: false
         })
       )
     ).toBe(false);

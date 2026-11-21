@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
+import { IntroExposedTextDirective } from '../../containers/introduction/intro-exposed-text.directive';
+
 /**
  * Compact "Achievements X / N" progress badge for the Quiz Selection screen.
  * Pure presentation — the parent passes the earned/total counts; no storage or
@@ -7,13 +9,14 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
  * shows a meaningless "0 / 0".
  *
  * Accessibility: a neutral container (no region/landmark, group, graphic or live
- * region) with a visible "Achievements N / M" (aria-hidden) and ONE screen-reader-only
- * text node "Achievements N of M" as the spoken phrase, so it is read once and not repeated as a region. The
- * trophy is decorative (aria-hidden). Static ambient progress, not an event.
+ * region) with visible "Achievements N / M" hidden from assistive technology.
+ * One transparent text node says "Achievements N of M" and is fitted to the
+ * outer pill's bounds. The trophy is decorative. Static progress, not an event.
  */
 @Component({
   selector: 'codelab-achievements-summary',
   standalone: true,
+  imports: [IntroExposedTextDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './achievements-summary.component.html',
   styleUrl: './achievements-summary.component.scss'

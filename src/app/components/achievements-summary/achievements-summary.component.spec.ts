@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 
 import { AchievementsSummaryComponent } from './achievements-summary.component';
+import { IntroExposedTextDirective } from '../../containers/introduction/intro-exposed-text.directive';
 
 describe('AchievementsSummaryComponent', () => {
   let fixture: ComponentFixture<AchievementsSummaryComponent>;
@@ -29,8 +31,7 @@ describe('AchievementsSummaryComponent', () => {
     expect(root()).toBeNull();
   });
 
-  // A neutral container: the visible label and count ARE the accessible content (read once), with no region/landmark, group,
-  // graphic, label override or live region. Only the decorative trophy is hidden. Narrator behaviour is verified by hand.
+  // Keep the informational badge neutral, without introducing a focus stop.
   it('is a neutral container with no region, landmark, group, graphic, name override or live region', () => {
     setCounts(2, 6);
     const el = root() as HTMLElement;
@@ -45,15 +46,14 @@ describe('AchievementsSummaryComponent', () => {
   it('renders the visible phrase with the slash as exactly one text node, aria-hidden, and no child elements', () => {
     setCounts(6, 6);
     const el = root() as HTMLElement;
-    expect(Array.from(el.children).map((c) => c.className)).toEqual(['achievements-summary__icon', 'achievements-summary__textwrap']);
-    const wrap = el.querySelector(':scope > .achievements-summary__textwrap') as HTMLElement;
-    expect(wrap.tagName).toBe('SPAN');
-    expect(wrap.getAttributeNames()).toEqual(['class']); // neutral wrapper: no role, name or aria-hidden
-    expect(Array.from(wrap.children).map((c) => c.className)).toEqual(['achievements-summary__text', 'achievements-summary__sr']);
-    const text = wrap.querySelector(':scope > .achievements-summary__text') as HTMLElement;
+    const visible = el.querySelector(':scope > .achievements-summary__visible') as HTMLElement;
+    expect(visible.getAttribute('aria-hidden')).toBe('true');
+    expect(visible.hasAttribute('data-intro-visible')).toBe(true);
+    expect(visible.querySelector('.achievements-summary__icon')).not.toBeNull();
+    const text = visible.querySelector('.achievements-summary__text') as HTMLElement;
     expect(text.tagName).toBe('SPAN');
     expect(text.getAttribute('aria-hidden')).toBe('true');
-    expect(text.getAttributeNames().sort()).toEqual(['aria-hidden', 'class']);
+    expect(text.hasAttribute('data-intro-font-ref')).toBe(true);
     expect(text.childNodes).toHaveLength(1);
     expect(text.firstChild!.nodeType).toBe(Node.TEXT_NODE);
     expect(text.children).toHaveLength(0);
@@ -61,12 +61,19 @@ describe('AchievementsSummaryComponent', () => {
     expect(fixture.componentInstance.summaryText()).toBe('Achievements 6 / 6');
   });
 
-  it('exposes ONE complete spoken phrase "Achievements N of M" in a screen-reader-only text node', () => {
+  it('exposes ONE complete spoken phrase fitted to the whole pill as one row', () => {
     setCounts(6, 6);
     const el = root() as HTMLElement;
-    const sr = el.querySelector(':scope > .achievements-summary__textwrap > .achievements-summary__sr') as HTMLElement;
+    const sr = el.querySelector(':scope > .achievements-summary__sr') as HTMLElement;
     expect(sr.tagName).toBe('SPAN');
-    expect(sr.getAttributeNames()).toEqual(['class']);
+    expect(el.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+    const exposed = fixture.debugElement
+      .query(By.directive(IntroExposedTextDirective))
+      .injector.get(IntroExposedTextDirective);
+    expect(exposed.text()).toBe('Achievements 6 of 6');
+    expect(exposed.mode()).toBe('cover');
+    expect(exposed.boxFrom()).toBe('group');
+    expect(exposed.singleRow()).toBe(true);
     expect(sr.childNodes).toHaveLength(1);
     expect(sr.firstChild!.nodeType).toBe(Node.TEXT_NODE);
     expect(sr.children).toHaveLength(0);
@@ -76,11 +83,16 @@ describe('AchievementsSummaryComponent', () => {
     expect(fixture.componentInstance.spokenText()).toBe('Achievements 6 of 6');
   });
 
-  it('has the trophy and the visible slash text as the only aria-hidden content, and no role, name, live region or focus behavior', () => {
+  it('hides the visible content without hiding the spoken phrase or adding focus behavior', () => {
     setCounts(2, 6);
     const el = root() as HTMLElement;
     const hidden = Array.from(el.querySelectorAll('[aria-hidden]')).map((e) => e.className);
-    expect(hidden).toEqual(['achievements-summary__icon', 'achievements-summary__text']); // the wrapper and the spoken text are NOT aria-hidden
+    expect(hidden).toEqual([
+      'achievements-summary__visible',
+      'achievements-summary__icon',
+      'achievements-summary__text'
+    ]);
+    expect(el.querySelector('.achievements-summary__sr')?.closest('[aria-hidden]')).toBeNull();
     expect(el.querySelector('[role], [aria-label], [aria-labelledby], [aria-live], [tabindex], section')).toBeNull();
     expect(el.tagName).toBe('DIV');
   });

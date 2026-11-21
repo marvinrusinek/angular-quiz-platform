@@ -1,16 +1,20 @@
 @if (total() > 0) {
   <div class="achievements-summary">
+    <span class="achievements-summary__visible" data-intro-visible aria-hidden="true">
+      <span class="achievements-summary__icon" aria-hidden="true">
+        🏆
+      </span>
+      <span class="achievements-summary__textwrap">
+        <span class="achievements-summary__text" data-intro-font-ref aria-hidden="true">{{ summaryText() }}</span>
+      </span>
+    </span>
+    <!-- One spoken phrase, fitted to the outer pill including icon and padding. -->
     <span
-      class="achievements-summary__icon"
-      aria-hidden="true"
-    >
-      🏆
-    </span>
-    <!-- A neutral positioned wrapper holds the visible slash text (aria-hidden) and ONE transparent, normal-sized, unclipped text layer
-         aligned over it: the spoken phrase ("of"), same font, size, weight and baseline. -->
-    <span class="achievements-summary__textwrap">
-      <span class="achievements-summary__text" aria-hidden="true">{{ summaryText() }}</span>
-      <span class="achievements-summary__sr">{{ spokenText() }}</span>
-    </span>
+      class="achievements-summary__sr"
+      [appIntroExposedText]="spokenText()"
+      exposedTextMode="cover"
+      exposedTextBox="group"
+      exposedSingleRow
+    ></span>
   </div>
 }

@@ -90,7 +90,12 @@
                 }
                 <span class="stat" [class]="'level-' + level.key" role="group">
                   <span class="stat-visible" data-intro-visible aria-hidden="true">
-                    <span class="stat-num" [appCountUp]="level.count" [countUpDelay]="(i + 2) * 140"></span>
+                    <!-- The Advanced count is rendered directly (its settled value); the other counters count up. -->
+                    @if (level.key === 'advanced') {
+                      <span class="stat-num">{{ level.count }}</span>
+                    } @else {
+                      <span class="stat-num" [appCountUp]="level.count" [countUpDelay]="(i + 2) * 140"></span>
+                    }
                     <span class="stat-label" data-intro-font-ref>{{ level.label }}</span>
                   </span>
                   <span [appIntroExposedText]="levelAccessibleLabel(level)" exposedTextMode="cover"></span>

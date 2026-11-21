@@ -3050,6 +3050,24 @@ describe('QuizSelectionComponent — catalog stats accessible phrase (grouped ca
     expect(visibleChildren).toEqual(['stat-num', 'stat-label']);
   });
 
+  it('renders the Advanced count directly in the same number element, while the other counters keep appCountUp', () => {
+    const { fixture } = render();
+    const advanced = fixture.nativeElement.querySelector('.quiz-stats .stat.level-advanced') as HTMLElement;
+    const visibleChildren = Array.from(advanced.querySelector('.stat-visible')!.children).map(
+      (c) => c.className.split(' ')[0]
+    );
+    expect(visibleChildren).toEqual(['stat-num', 'stat-label']); // same element, class and order as the others
+    const num = advanced.querySelector('.stat-num') as HTMLElement;
+    // the final count straight away (no counting animation), the same value the exposed phrase carries
+    expect(num.textContent).toMatch(/^\d+$/);
+    expect(exposedText(advanced).textContent).toBe(`${num.textContent} Advanced`);
+    expect(num.classList.contains('count-up-pop')).toBe(false);
+    // the other statistics are still driven by the counter (their number element is the animated node)
+    for (const label of ['Topics', 'Questions', 'Beginner', 'Intermediate']) {
+      expect(statEl(fixture, label).querySelector('.stat-num')).not.toBeNull();
+    }
+  });
+
   it('exposes the final count from the data, not the counter animation tick (the visible number is the only animated node)', () => {
     const { fixture } = render();
     const quizzesStat = statEl(fixture, 'Topics');

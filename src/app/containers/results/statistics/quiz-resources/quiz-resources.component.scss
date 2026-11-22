@@ -11,6 +11,17 @@ app-quiz-resources {
 // RESOURCES — the always-visible list (.resources-view context)
 // ============================================================
 .resources-view {
+  .resources-introduction {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 16px;
+    color: vars.$dark-blue;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+  }
+
   // Loading / none / could-not-load states of the always-visible list.
   .resources-status {
     margin: 16px 0;

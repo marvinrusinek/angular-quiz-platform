@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+  ViewEncapsulation
+} from '@angular/core';
 
 import { Resource } from '@shared/models';
 import { IntroExposedTextDirective } from '../../../introduction/intro-exposed-text.directive';
@@ -24,6 +31,9 @@ import { IntroExposedTextDirective } from '../../../introduction/intro-exposed-t
 export class QuizResourcesComponent {
   // ── inputs ──────────────────────────────────────────────────────
   readonly milestoneName = input<string>('');
+  readonly introductionText = computed(
+    () => $localize`Brush up your knowledge of ${this.milestoneName()} with these resources:`
+  );
   readonly resources = input<Resource[]>([]);
   /** The load state of the resources request: loading, ready (possibly empty) or failed. */
   readonly status = input<'loading' | 'ready' | 'failed'>('ready');

@@ -11,6 +11,7 @@
     }
     @default {
       @if (resources().length > 0) {
+        <span class="resources-introduction">{{ introductionText() }}</span>
         <!-- A native unordered list: each item holds ONE native button that IS the whole visual row (background, radius,
              spacing, icon) and opens the resource in a new tab. The visible text
              (one text node inside a <strong>) is aria-hidden and ONE transparent text node, "Title" plus the optional

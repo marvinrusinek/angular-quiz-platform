@@ -15,8 +15,8 @@ import { QuizResourcesComponent } from './quiz-resources/quiz-resources.componen
 /**
  * Results → Learning Resources (the dedicated view).
  *
- * The page's own h2 "Learning Resources" comes first; this view then shows the links as an ALWAYS-VISIBLE list (no
- * subtitle, no "Brush up…" toggle, no caret), each one a native link, with real loading / none / could-not-load states.
+ * The page's own h2 "Learning Resources" comes first, followed by a topic introduction and an ALWAYS-VISIBLE list
+ * of resource buttons (no toggle or caret), with real loading / none / could-not-load states.
  * A failed request must NOT look like a quiz that simply has no resources.
  */
 const BASE = 'https://api.test/api';
@@ -92,10 +92,19 @@ describe('Learning Resources view: always-visible list', () => {
     expect(links().map((a) => visibleText(a))).toEqual(['Router guide — Angular', 'Router API — Angular']);
   });
 
-  it('has no subtitle, no "Brush up…" toggle, no caret and no aria-expanded control', () => {
+  it('introduces the topic once before the list without adding a toggle', () => {
+    const introduction = el().querySelector('.resources-introduction')!;
+    expect(introduction.textContent).toBe(
+      'Brush up your knowledge of Angular Router with these resources:'
+    );
+    expect(introduction.tagName).toBe('SPAN');
+    expect(introduction.childNodes).toHaveLength(1);
+    expect(introduction.firstChild!.nodeType).toBe(Node.TEXT_NODE);
+    expect(introduction.closest('[aria-hidden="true"]')).toBeNull();
+    expect(introduction.nextElementSibling?.classList.contains('resources-rows'))
+      .toBe(true);
     expect(el().querySelector('.resources-header, .resources-caret, h3, .section-title')).toBeNull();
     expect(el().querySelector('[aria-expanded]')).toBeNull();
-    expect(el().textContent).not.toContain('Brush up');
     expect(el().textContent).not.toContain('Use these resources');
   });
 

@@ -11,7 +11,7 @@ import { ReturnComponent } from './return.component';
  * Topic Quiz Results — the action buttons under the result.
  *
  * "View Your Progress" is navigation to the AGGREGATE page; it must not touch
- * this attempt's result or session. It is a REAL link (has an href).
+ * this attempt's result or session. It is a native button that navigates with routerLink.
  */
 describe('ReturnComponent — Results actions', () => {
   let fixture: ComponentFixture<ReturnComponent>;
@@ -31,39 +31,49 @@ describe('ReturnComponent — Results actions', () => {
     Array.from(el.querySelectorAll<HTMLElement>('.btn'));
   const byTitle = (title: string): HTMLElement | undefined =>
     anchors().find((a) => a.getAttribute('title') === title);
-  // The progress link has no title any more (its accessible name is explicit): find it as the one <a>.
-  const progressLink = (): HTMLAnchorElement | undefined =>
-    el.querySelector<HTMLAnchorElement>('a.btn') ?? undefined;
+  // Find the progress action independently of the Restart/Select titles.
+  const progressButton = (): HTMLButtonElement | undefined =>
+    el.querySelector<HTMLButtonElement>('button.progress-link') ?? undefined;
   const label = (a: Element | undefined): string =>
     (a?.textContent ?? '').replace(/[\s ]+/g, ' ').trim();
 
   it('offers "View Your Progress", routed to /progress', () => {
-    const progress = progressLink();
+    const progress = progressButton();
     expect(progress).toBeDefined();
     expect(label(progress)).toContain('View Your Progress');
-    expect(progress!.getAttribute('href')).toBe('/progress');
+    expect(progress!.type).toBe('button');
   });
 
-  it('is a REAL link — keyboard-reachable — not a click-only anchor', () => {
-    const progress = progressLink()!;
-    expect(progress.tagName).toBe('A');
-    expect(progress.hasAttribute('href')).toBe(true);
+  it('is a native button in the Tab order and takes focus', () => {
+    const progress = progressButton()!;
+    expect(progress.tagName).toBe('BUTTON');
+    expect(progress.type).toBe('button');
+    expect(progress.disabled).toBe(false);
+    expect(progress.hasAttribute('href')).toBe(false);
+    expect(progress.tabIndex).toBe(0);
+    document.body.appendChild(el);
+    try {
+      progress.focus();
+      expect(document.activeElement).toBe(progress);
+    } finally {
+      el.remove();
+    }
   });
 
-  it('is a native link named by its single visible label: no title, no aria-label, nothing hiding the link', () => {
-    const progress = progressLink()!;
-    expect(progress.tagName).toBe('A');
-    expect(progress.getAttribute('href')).toBe('/progress');
+  it('names the native button from its visible label without extra naming', () => {
+    const progress = progressButton()!;
+    expect(progress.tagName).toBe('BUTTON');
+    expect(progress.hasAttribute('href')).toBe(false);
     expect(progress.hasAttribute('title')).toBe(false); // the old title="your progress" was a redundant description
     expect(progress.hasAttribute('aria-label')).toBe(false);
     expect(progress.hasAttribute('aria-hidden')).toBe(false);
     expect(progress.hasAttribute('role')).toBe(false);
-    expect(progress.hasAttribute('tabindex')).toBe(false);
+    expect(progress.tabIndex).toBe(0); // RouterLink preserves native Tab order.
     expect(label(progress)).toContain('View Your Progress');
   });
 
-  it('has exactly ONE exposed text node inside the link (the label): no blank nbsp text line, label not aria-hidden', () => {
-    const progress = progressLink()!;
+  it('has exactly ONE exposed text node inside the progress button (the label): no blank nbsp text line, label not aria-hidden', () => {
+    const progress = progressButton()!;
     const walker = document.createTreeWalker(progress, NodeFilter.SHOW_TEXT);
     const texts: Text[] = [];
     for (let n = walker.nextNode(); n; n = walker.nextNode()) texts.push(n as Text);
@@ -75,9 +85,9 @@ describe('ReturnComponent — Results actions', () => {
     expect(progress.querySelector('.material-icons')?.getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('keeps the icon-to-label spacing in CSS (scoped to the link), not in a text node', () => {
+  it('keeps the icon-to-label spacing in CSS (scoped to the progress action), not in a text node', () => {
     const scss = fs.readFileSync(path.join(__dirname, 'return.component.scss'), 'utf8').replace(/\s+/g, ' ');
-    expect(progressLink()!.classList.contains('progress-link')).toBe(true);
+    expect(progressButton()!.classList.contains('progress-link')).toBe(true);
     expect(scss).toContain('.progress-link .mdc-button__label { margin-inline-start: calc(0.556em + 4px); }');
   });
 
@@ -109,7 +119,7 @@ describe('ReturnComponent — Results actions', () => {
     const restart = jest.spyOn(fixture.componentInstance, 'restartQuiz');
     const select = jest.spyOn(fixture.componentInstance, 'selectQuiz');
 
-    progressLink()!.click();
+    progressButton()!.click();
 
     expect(navigateByUrl).toHaveBeenCalledTimes(1);
     expect(navigateByUrl.mock.calls[0][0].toString()).toBe('/progress');

@@ -7,10 +7,14 @@
   // Keeps the heading's former <h4> appearance (it is now an h2 for the page outline): 1em, bold, 1.33em margins —
   // the browser's default h4 rendering — instead of the larger default h2 size and smaller h2 margins.
   .challenge__heading {
+    color: #000;
+    -webkit-text-fill-color: currentColor;
     font-size: 1em;
     font-weight: bold;
+    width: fit-content;
+    max-width: 100%;
     margin-block: 1.33em;
-    margin-inline: 0;
+    margin-inline: auto;
   }
 
   .social-buttons {

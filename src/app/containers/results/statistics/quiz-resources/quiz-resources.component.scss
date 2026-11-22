@@ -1,173 +1,17 @@
 @use 'sass:color';
 @use '../../../../../variables' as vars;
 
-// ViewEncapsulation.None → these rules are global. The host is layout-transparent
-// so `.resources-section` sits exactly where the previous <ng-template> content
-// did (a direct child of `.quiz-feedback` / `.resources-view`).
+// ViewEncapsulation.None → these rules are global. The host is layout-transparent: the list sits exactly where its
+// content would if the parent rendered it directly (a child of `.resources-view`).
 app-quiz-resources {
   display: contents;
 }
 
-// The link and its one exposed text range cover the same resource row.
-.resources-section {
-  .resource-item {
-    position: relative;
-  }
-
-  // A native button that looks like the row it replaces: only the button defaults that would change the look are reset.
-  .resource-link {
-    position: relative;
-    display: block;
-    box-sizing: border-box;
-    width: 100%;
-    margin: 0;
-    border: 0;
-    background: none;
-    border-radius: inherit;
-    font: inherit;
-    color: inherit;
-    text-align: left;
-    text-decoration: none;
-    cursor: pointer;
-  }
-
-  .resource-link:hover {
-    text-decoration: none;
-  }
-
-  .resource-visible {
-    display: contents;
-  }
-
-  .resource-icon {
-    display: none;
-  }
-
-  .resource-title {
-    color: vars.$dodger-blue;
-  }
-
-  .resource-host {
-    font-weight: normal;
-  }
-
-  .resource-item:hover .resource-title,
-  .resource-item:focus-within .resource-title {
-    text-decoration: underline;
-  }
-}
-
 // ============================================================
-// RESOURCES — inline in the low-score feedback column (.quiz-feedback context)
-// ============================================================
-.quiz-feedback {
-  ul li.resource-item {
-    padding: 0;
-    border-left: 0;
-    background: transparent;
-
-    .resource-link {
-      padding: 8px 12px;
-      background: white;
-      border-left: 3px solid vars.$dodger-blue;
-    }
-  }
-
-  // Resources Section
-  .resources-section {
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 12px;
-    padding: 20px;
-    margin-top: 16px;
-    text-align: left;
-
-    // Signal-controlled toggle button (replaces a native <details>/<summary>).
-    .resources-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      margin: 0 0 12px;
-      padding: 0;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      font: inherit;
-      text-align: left;
-      color: vars.$dark-blue;
-
-      // Right-side caret: ▼ collapsed, ▲ expanded (interpolated in the template).
-      .resources-caret {
-        flex: 0 0 auto;
-        margin-left: auto;
-        font-size: 12px;
-        line-height: 1;
-        color: vars.$dark-blue;
-      }
-
-      h4 {
-        margin: 0;
-        font-size: 16px;
-        color: vars.$dark-blue;
-      }
-    }
-  }
-
-  ul {
-    line-height: 1.5;
-    padding-left: 24px;
-    margin: 0;
-
-    li {
-      list-style-type: none;
-      margin-bottom: 12px;
-      padding: 8px 12px;
-      background: white;
-      border-radius: 8px;
-      border-left: 3px solid vars.$dodger-blue;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-
-      &:hover {
-        transform: translateX(4px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
-
-      a {
-        color: vars.$dodger-blue;
-        text-decoration: none;
-
-        &:hover {
-          text-decoration: underline;
-        }
-      }
-    }
-  }
-
-  .resource-title {
-    font-weight: 600;
-    display: inline;
-  }
-
-  .resource-host {
-    font-style: italic;
-    color: vars.$gray;
-    display: inline;
-  }
-}
-
-// ============================================================
-// RESOURCES — standalone list (.resources-view context)
+// RESOURCES — the always-visible list (.resources-view context)
 // ============================================================
 .resources-view {
-  ul li.resource-item {
-    padding: 0;
-
-    .resource-link {
-      padding: 8px 12px 8px 34px;
-    }
-  }
-
-  // Loading / none / could-not-load states of the always-visible list (the list variant).
+  // Loading / none / could-not-load states of the always-visible list.
   .resources-status {
     margin: 16px 0;
     text-align: center;
@@ -197,13 +41,8 @@ app-quiz-resources {
     }
   }
 
-  .resources-header {
-    color: vars.$dark-blue;
-    font-weight: 600;
-  }
-
-  // The always-visible rows: each is ONE native link that is itself the visual row (background, radius, spacing and the
-  // link icon are the link's own), inside the native list. Same look as the old list items.
+  // The always-visible rows: each is ONE native button that is itself the visual row (background, radius, spacing and the
+  // icon are the button's own), inside the native list.
   .resources-rows {
     text-align: left;
     margin: 0 0 20px;
@@ -211,19 +50,11 @@ app-quiz-resources {
     list-style: none;
     padding: 0;
 
-    // The list item is only the record boundary: it carries the row spacing and none of the old standalone-list item
-    // styling (background, padding, radius, bullet icon), which the link itself draws. The !important matches the
-    // global `.resources-view li { padding-left: 34px !important }` rule it overrides.
+    // The list item is only the record boundary: it carries the row spacing; the button itself draws the row.
     .resource-item {
       margin: 0 0 12px;
-      padding: 0 !important;
-      background: none;
-      border-radius: 0;
+      padding: 0;
       list-style: none;
-
-      &::before {
-        content: none !important;
-      }
     }
 
     .resource-row {
@@ -252,14 +83,14 @@ app-quiz-resources {
         top: 10px;
       }
 
-      // One text node per link, inside a <strong> (as on the Progress link); keep the row's weight (not the bolder default).
+      // One text node per button, inside a <strong>; keep the row's weight (not the bolder default).
       font-weight: 600;
 
       strong {
         font-weight: inherit;
       }
 
-      // The visible text is hidden from assistive technology; the row's ONE exposed phrase is fitted to this link's box.
+      // The visible text is hidden from assistive technology; the row's ONE exposed phrase is fitted to this button's box.
       .resource-visible {
         display: contents;
       }
@@ -270,47 +101,4 @@ app-quiz-resources {
     }
   }
 
-  ul {
-    list-style-type: none;
-    padding-left: 0;
-    text-align: left;
-
-    li {
-      margin-bottom: 12px;
-      padding: 8px 12px 8px 34px;
-      background: rgba(255, 255, 255, 0.5);
-      border-radius: 8px;
-      position: relative;
-
-      // Decorative link icon (a real element, hidden from assistive technology).
-      .resource-icon {
-        display: block;
-        font-size: 14px;
-        position: absolute;
-        left: 10px;
-        top: 10px;
-      }
-
-      a {
-        text-decoration: none;
-        color: vars.$dodger-blue;
-        font-weight: 600;
-        display: inline;
-
-        &:hover {
-          text-decoration: underline;
-        }
-      }
-
-      .resource-title {
-        font-weight: 600;
-      }
-
-      .resource-host {
-        font-size: 0.9em;
-        color: vars.$gray;
-        display: inline;
-      }
-    }
-  }
 }

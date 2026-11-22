@@ -45,13 +45,6 @@
                     i18n-title
                     title="Try Again"
                   />
-                  <!-- If viewMode is 'all', show resources here for low scores -->
-                  @if (viewMode() === 'all') {
-                    <app-quiz-resources
-                      [milestoneName]="milestoneName()"
-                      [resources]="resources()"
-                    />
-                  }
                 }
               </div>
 
@@ -101,7 +94,6 @@
       <!-- The page's own "Learning Resources" h2 comes first; the always-visible list follows directly. -->
       <div class="resources-view">
         <app-quiz-resources
-          variant="list"
           [milestoneName]="milestoneName()"
           [resources]="resources()"
           [status]="resourcesStatus()"

@@ -150,7 +150,6 @@ describe('Learning Resources view: always-visible list', () => {
 
   it('a resource with no source shows just its title', () => {
     const c = TestBed.createComponent(QuizResourcesComponent);
-    c.componentRef.setInput('variant', 'list');
     c.componentRef.setInput('status', 'ready');
     c.componentRef.setInput('resources', [{ title: 'Docs', url: 'https://d.test', host: '' }]);
     c.detectChanges();
@@ -158,6 +157,37 @@ describe('Learning Resources view: always-visible list', () => {
     expect(visibleText(a)).toBe('Docs');
     expect(exposedText(a)).toBe('Docs'); // no trailing host
     expect(a.querySelectorAll('strong')).toHaveLength(1);
+  });
+
+  it('never opens a non-http(s) destination', () => {
+    const open = jest.spyOn(window, 'open').mockReturnValue(null);
+    open.mockClear();
+    const c = TestBed.createComponent(QuizResourcesComponent);
+    c.componentRef.setInput('status', 'ready');
+    c.componentRef.setInput('resources', [
+      { title: 'Bad', url: 'javascript:alert(1)', host: '' },
+      { title: 'Not a URL', url: 'not a url', host: '' }
+    ]);
+    c.detectChanges();
+    for (const button of Array.from((c.nativeElement as HTMLElement).querySelectorAll('button'))) button.click();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('updates a row\u2019s exposed phrase and destination when its resource changes', () => {
+    const open = jest.spyOn(window, 'open').mockReturnValue(null);
+    open.mockClear();
+    const c = TestBed.createComponent(QuizResourcesComponent);
+    c.componentRef.setInput('status', 'ready');
+    c.componentRef.setInput('resources', [{ title: 'Old', url: 'https://example.test/old', host: 'Old host' }]);
+    c.detectChanges();
+    TestBed.tick();
+    c.componentRef.setInput('resources', [{ title: 'New title', url: 'https://example.test/new', host: 'New host' }]);
+    c.detectChanges();
+    TestBed.tick();
+    const button = (c.nativeElement as HTMLElement).querySelector('button')!;
+    expect(exposedText(button)).toBe('New title New host');
+    button.click();
+    expect(open).toHaveBeenCalledWith('https://example.test/new', '_blank', 'noopener,noreferrer');
   });
 
   it('is a native unordered list of items, each holding exactly one link (no roles, landmarks or extra elements)', () => {

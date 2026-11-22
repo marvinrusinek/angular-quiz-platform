@@ -1,95 +1,45 @@
-@if (variant() === 'list') {
-  <div class="resources-list">
-    @switch (status()) {
-      @case ('loading') {
-        <p class="resources-status" role="status" i18n>Loading learning resources…</p>
-      }
-      @case ('failed') {
-        <div class="resources-status resources-failed" role="alert">
-          <p i18n>Learning resources couldn't be loaded. Check your connection and try again.</p>
-          <button type="button" class="resources-retry" (click)="retry.emit()" i18n>Try again</button>
-        </div>
-      }
-      @default {
-        @if (resources().length > 0) {
-          <!-- A native unordered list: each item holds ONE native button that IS the whole visual row (background, radius,
-               spacing, icon) and opens the resource in a new tab. The visible text
-               (one text node inside a <strong>) is aria-hidden and ONE transparent text node, "Title" plus the optional
-               host, is exposed and fitted to the button's own box (IntroExposedTextDirective). No aria-label, role, wrapper
-               or landmark is added. -->
-          <ul class="resources-rows">
-            @for (resource of resources(); track resource.url) {
-              <li class="resource-item">
-                <button type="button" class="resource-row" (click)="openResource(resource.url)">
-                  <span class="resource-visible" data-intro-visible aria-hidden="true">
-                    <strong data-intro-font-ref>
-                      {{ resource.host ? resource.title + ' — ' + resource.host : resource.title }}
-                    </strong>
-                  </span>
-                  <span class="resource-exposed"
-                    [appIntroExposedText]="resource.title + (resource.host ? ' ' + resource.host : '')"
-                    exposedTextMode="cover"
-                    exposedTextBox="group"
-                    exposedSingleRow>
-                  </span>
-                </button>
-              </li>
-            }
-          </ul>
-        } @else {
-          <p class="resources-status" i18n>
-            There are no learning resources for {{ milestoneName() }} yet.
-          </p>
-        }
+<div class="resources-list">
+  @switch (status()) {
+    @case ('loading') {
+      <p class="resources-status" role="status" i18n>Loading learning resources…</p>
+    }
+    @case ('failed') {
+      <div class="resources-status resources-failed" role="alert">
+        <p i18n>Learning resources couldn't be loaded. Check your connection and try again.</p>
+        <button type="button" class="resources-retry" (click)="retry.emit()" i18n>Try again</button>
+      </div>
+    }
+    @default {
+      @if (resources().length > 0) {
+        <!-- A native unordered list: each item holds ONE native button that IS the whole visual row (background, radius,
+             spacing, icon) and opens the resource in a new tab. The visible text
+             (one text node inside a <strong>) is aria-hidden and ONE transparent text node, "Title" plus the optional
+             host, is exposed and fitted to the button's own box (IntroExposedTextDirective). No aria-label, role, wrapper
+             or landmark is added. -->
+        <ul class="resources-rows">
+          @for (resource of resources(); track resource.url) {
+            <li class="resource-item">
+              <button type="button" class="resource-row" (click)="openResource(resource.url)">
+                <span class="resource-visible" data-intro-visible aria-hidden="true">
+                  <strong data-intro-font-ref>
+                    {{ resource.host ? resource.title + ' — ' + resource.host : resource.title }}
+                  </strong>
+                </span>
+                <span class="resource-exposed"
+                  [appIntroExposedText]="resource.title + (resource.host ? ' ' + resource.host : '')"
+                  exposedTextMode="cover"
+                  exposedTextBox="group"
+                  exposedSingleRow>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="resources-status" i18n>
+          There are no learning resources for {{ milestoneName() }} yet.
+        </p>
       }
     }
-  </div>
-} @else {
-  <div class="resources-section" [class.open]="resourcesExpanded()">
-    <button
-      type="button"
-      class="resources-header"
-      (click)="toggleResources()"
-      [attr.aria-expanded]="resourcesExpanded()"
-    >
-      <span i18n>
-        Brush up your knowledge of
-        <strong>
-          {{ milestoneName() }}
-        </strong>
-        with these resources:
-      </span>
-      <span class="resources-caret" aria-hidden="true">{{ resourcesExpanded() ? '▲' : '▼' }}</span>
-    </button>
-
-    @if (resourcesExpanded()) {
-      <ul>
-        @for (resource of resources(); track resource.url) {
-          <li class="resource-item">
-            <button
-              type="button"
-              class="resource-link"
-              (click)="openResource(resource.url)"
-          >
-            <span class="resource-visible" data-intro-visible aria-hidden="true">
-              <span class="resource-icon" aria-hidden="true">🔗</span>
-              <span class="resource-title" data-intro-font-ref>{{ resource.title }}</span>
-              @if (resource.host) {
-                <span class="resource-host">— {{ resource.host }}</span>
-              }
-            </span>
-            <span
-              class="resource-exposed"
-              [appIntroExposedText]="resource.title + (resource.host ? ' ' + resource.host : '')"
-              exposedTextMode="cover"
-              exposedTextBox="group"
-              exposedSingleRow
-            ></span>
-          </button>
-          </li>
-        }
-      </ul>
-    }
-  </div>
-
-}
+  }
+</div>

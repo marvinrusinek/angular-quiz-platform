@@ -60,6 +60,8 @@ export class StatisticsComponent implements OnInit {
 
   readonly quizMetadata = signal<Partial<QuizMetadata>>({});
   readonly resources = signal<Resource[]>([]);
+  /** The dedicated Resources view's load state, so it can say loading / none / could-not-load. */
+  readonly resourcesStatus = signal<'loading' | 'ready' | 'failed'>('loading');
 
   readonly completionTimeSig = signal(0);
   readonly elapsedMinutes = computed(() => Math.floor(this.completionTimeSig() / 60));
@@ -225,19 +227,37 @@ export class StatisticsComponent implements OnInit {
     // must not delay or break it. The service resolves to an empty list on any
     // failure, so the panel behaves exactly as it does for the twelve quizzes
     // that have no links.
-    if (this.quizId()) {
-      this.resourcesApi
-        .loadResources(this.quizId())
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((resources) => {
-          this.resources.set(resources);
-          this.cdRef.markForCheck();
-        });
-    }
+    this.fetchResources();
     this.calculateElapsedTime();
     this.sendQuizStatusToQuizService();
 
     this.cdRef.markForCheck();
+  }
+
+  /** Load this quiz's resources from the API; a failure is shown as such, not as an empty list. */
+  private fetchResources(): void {
+    if (!this.quizId()) {
+      this.resourcesStatus.set('ready');
+      return;
+    }
+    this.resourcesApi
+      .loadResourcesResult(this.quizId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result.status === 'ok') {
+          this.resources.set(result.resources);
+          this.resourcesStatus.set('ready');
+        } else {
+          this.resourcesStatus.set('failed');
+        }
+        this.cdRef.markForCheck();
+      });
+  }
+
+  retryResources(): void {
+    this.resourcesStatus.set('loading');
+    this.cdRef.markForCheck();
+    this.fetchResources();
   }
 
   private countTimedOutQuestions(): number {

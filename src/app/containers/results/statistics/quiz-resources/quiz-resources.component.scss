@@ -1,3 +1,4 @@
+@use 'sass:color';
 @use '../../../../../variables' as vars;
 
 // ViewEncapsulation.None → these rules are global. The host is layout-transparent
@@ -7,10 +8,71 @@ app-quiz-resources {
   display: contents;
 }
 
+// The link and its one exposed text range cover the same resource row.
+.resources-section {
+  .resource-item {
+    position: relative;
+  }
+
+  // A native button that looks like the row it replaces: only the button defaults that would change the look are reset.
+  .resource-link {
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    background: none;
+    border-radius: inherit;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .resource-link:hover {
+    text-decoration: none;
+  }
+
+  .resource-visible {
+    display: contents;
+  }
+
+  .resource-icon {
+    display: none;
+  }
+
+  .resource-title {
+    color: vars.$dodger-blue;
+  }
+
+  .resource-host {
+    font-weight: normal;
+  }
+
+  .resource-item:hover .resource-title,
+  .resource-item:focus-within .resource-title {
+    text-decoration: underline;
+  }
+}
+
 // ============================================================
 // RESOURCES — inline in the low-score feedback column (.quiz-feedback context)
 // ============================================================
 .quiz-feedback {
+  ul li.resource-item {
+    padding: 0;
+    border-left: 0;
+    background: transparent;
+
+    .resource-link {
+      padding: 8px 12px;
+      background: white;
+      border-left: 3px solid vars.$dodger-blue;
+    }
+  }
+
   // Resources Section
   .resources-section {
     background: rgba(255, 255, 255, 0.5);
@@ -97,9 +159,115 @@ app-quiz-resources {
 // RESOURCES — standalone list (.resources-view context)
 // ============================================================
 .resources-view {
+  ul li.resource-item {
+    padding: 0;
+
+    .resource-link {
+      padding: 8px 12px 8px 34px;
+    }
+  }
+
+  // Loading / none / could-not-load states of the always-visible list (the list variant).
+  .resources-status {
+    margin: 16px 0;
+    text-align: center;
+    color: vars.$dark-blue;
+    line-height: 1.5;
+
+    p {
+      margin: 0 0 12px;
+    }
+  }
+
+  .resources-retry {
+    font-family: vars.$font-stack;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    background: vars.$dodger-blue;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover,
+    &:focus-visible {
+      background: color.adjust(vars.$dodger-blue, $lightness: -10%);
+    }
+  }
+
   .resources-header {
     color: vars.$dark-blue;
     font-weight: 600;
+  }
+
+  // The always-visible rows: each is ONE native link that is itself the visual row (background, radius, spacing and the
+  // link icon are the link's own), inside the native list. Same look as the old list items.
+  .resources-rows {
+    text-align: left;
+    margin: 0 0 20px;
+    // native list: no bullets, no default indentation (the rows look exactly as they did without the list)
+    list-style: none;
+    padding: 0;
+
+    // The list item is only the record boundary: it carries the row spacing and none of the old standalone-list item
+    // styling (background, padding, radius, bullet icon), which the link itself draws. The !important matches the
+    // global `.resources-view li { padding-left: 34px !important }` rule it overrides.
+    .resource-item {
+      margin: 0 0 12px;
+      padding: 0 !important;
+      background: none;
+      border-radius: 0;
+      list-style: none;
+
+      &::before {
+        content: none !important;
+      }
+    }
+
+    .resource-row {
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      margin: 0;
+      border: 0;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      position: relative;
+      padding: 8px 12px 8px 34px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      color: vars.$dodger-blue;
+      text-decoration: none;
+
+      // Decorative icon: empty alt text keeps it out of the accessibility tree (no separate stop).
+      &::before {
+        content: '🔗';
+        content: '🔗' / '';
+        font-size: 14px;
+        position: absolute;
+        left: 10px;
+        top: 10px;
+      }
+
+      // One text node per link, inside a <strong> (as on the Progress link); keep the row's weight (not the bolder default).
+      font-weight: 600;
+
+      strong {
+        font-weight: inherit;
+      }
+
+      // The visible text is hidden from assistive technology; the row's ONE exposed phrase is fitted to this link's box.
+      .resource-visible {
+        display: contents;
+      }
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
 
   ul {
@@ -114,9 +282,9 @@ app-quiz-resources {
       border-radius: 8px;
       position: relative;
 
-      // Custom Bullet - Link Icon
-      &::before {
-        content: '🔗';
+      // Decorative link icon (a real element, hidden from assistive technology).
+      .resource-icon {
+        display: block;
         font-size: 14px;
         position: absolute;
         left: 10px;
@@ -132,6 +300,10 @@ app-quiz-resources {
         &:hover {
           text-decoration: underline;
         }
+      }
+
+      .resource-title {
+        font-weight: 600;
       }
 
       .resource-host {

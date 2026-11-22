@@ -30,6 +30,14 @@ import type { Resource } from '@shared/models';
  * `topic-quiz-resources.service.spec.ts`.
  */
 
+/**
+ * What a load came to. `failed` is kept apart from an empty `ok` so the view can say "could not be loaded" for an
+ * unreachable API and "none for this quiz" for a quiz that genuinely has no links.
+ */
+export type ResourcesResult =
+  | { readonly status: 'ok'; readonly resources: Resource[] }
+  | { readonly status: 'failed' };
+
 interface QuizResourceDto {
   readonly title: string;
   readonly url: string;
@@ -53,13 +61,21 @@ export class TopicQuizResourcesService {
    * resolve to `[]`.
    */
   loadResources(quizId: string): Observable<Resource[]> {
-    if (!quizId) return of([]);
+    return this.loadResourcesResult(quizId).pipe(map((r) => (r.status === 'ok' ? r.resources : [])));
+  }
+
+  /**
+   * The same load, but a failure is reported as `failed` instead of an empty list, for a view that has to tell
+   * "could not be loaded" from "this quiz has no links". Never errors, and never reads the local bank.
+   */
+  loadResourcesResult(quizId: string): Observable<ResourcesResult> {
+    if (!quizId) return of({ status: 'ok', resources: [] });
 
     const url = `${this.apiBaseUrl}/quizzes/${encodeURIComponent(quizId)}/resources`;
 
     return this.http.get<QuizResourcesBody>(url).pipe(
-      map((body) => this.toResources(body)),
-      catchError(() => of([]))
+      map((body): ResourcesResult => ({ status: 'ok', resources: this.toResources(body) })),
+      catchError(() => of<ResourcesResult>({ status: 'failed' }))
     );
   }
 

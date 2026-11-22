@@ -188,3 +188,46 @@ describe('THE LOCAL BANK IS NEVER READ', () => {
     http.expectNone('/assets/data/quiz.json');
   });
 });
+
+describe('loadResourcesResult: tells a failed load from an empty one', () => {
+  function result(quizId: string): { value: unknown } {
+    const out: { value: unknown } = { value: null };
+    service.loadResourcesResult(quizId).subscribe((r) => {
+      out.value = r;
+    });
+    return out;
+  }
+
+  it('reports ok with the resources', () => {
+    const out = result('router');
+    expectOne('router').flush({
+      quizId: 'router',
+      resources: [{ title: 'A', url: 'https://a.test', host: 'a' }]
+    });
+    expect(out.value).toEqual({
+      status: 'ok',
+      resources: [{ title: 'A', url: 'https://a.test', host: 'a' }]
+    });
+  });
+
+  it('a quiz with no links is ok with an empty list, NOT failed', () => {
+    const out = result('typescript');
+    expectOne('typescript').flush({ quizId: 'typescript', resources: [] });
+    expect(out.value).toEqual({ status: 'ok', resources: [] });
+  });
+
+  it('an unreachable API and a server error are failed', () => {
+    const a = result('router');
+    expectOne('router').error(new ProgressEvent('error'));
+    expect(a.value).toEqual({ status: 'failed' });
+    const b = result('forms');
+    expectOne('forms').flush('boom', { status: 500, statusText: 'Server Error' });
+    expect(b.value).toEqual({ status: 'failed' });
+  });
+
+  it('loadResources still resolves to an empty list on failure (unchanged contract)', () => {
+    const out = collect('router');
+    expectOne('router').error(new ProgressEvent('error'));
+    expect(out.value).toEqual([]);
+  });
+});

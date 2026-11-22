@@ -98,16 +98,14 @@
 
     <!-- === RESOURCES SECTION (Standalone) === -->
     @if (viewMode() === 'resources') {
+      <!-- The page's own "Learning Resources" h2 comes first; the always-visible list follows directly. -->
       <div class="resources-view">
-        <h3
-          class="section-title"
-          i18n
-        >
-          Use these resources to improve your score!
-        </h3>
         <app-quiz-resources
+          variant="list"
           [milestoneName]="milestoneName()"
           [resources]="resources()"
+          [status]="resourcesStatus()"
+          (retry)="retryResources()"
         />
       </div>
     }

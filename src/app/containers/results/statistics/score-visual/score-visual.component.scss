@@ -177,6 +177,10 @@
     &.timed-out {
       color: vars.$gray;
     }
+
+    &.unanswered {
+      color: vars.$gray;
+    }
   }
 }
 

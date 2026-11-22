@@ -42,6 +42,9 @@
     <span class="breakdown-item correct">✔ {{ correctText() }}</span>
     <span class="breakdown-item incorrect">✖ {{ incorrectText() }}</span>
     <span class="breakdown-item timed-out">⏱ {{ timedOutText() }}</span>
+    @if (unansweredCount() > 0) {
+      <span class="breakdown-item unanswered">○ {{ unansweredText() }}</span>
+    }
   </div>
   <span [appIntroExposedText]="breakdownExposedText()" exposedTextMode="justify"></span>
 </div>

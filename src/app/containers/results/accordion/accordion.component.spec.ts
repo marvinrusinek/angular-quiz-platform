@@ -57,7 +57,7 @@ async function render(): Promise<{
         provide: QuizService,
         useValue: {
           questionsSig: () => QUESTIONS,
-          userAnswers: [],
+          userAnswers: [[2]], // Q1: the wrong option B was selected (an incorrect ATTEMPT, not a skipped question)
           questions: [],
           quizId: 'fixture-quiz',
           setQuizId: jest.fn(),
@@ -409,7 +409,7 @@ describe('AccordionComponent — CDK accordion semantics (Variant D)', () => {
     const rows = [...fixture.nativeElement.querySelectorAll('#qr-body-0 .quiz-summary-row')] as HTMLElement[];
     const labels = rows.map((r) => (r.querySelector('.quiz-summary-text')!.textContent ?? '').split(':')[0]);
     expect(labels).toEqual([
-      'Your Answers',
+      'Your Answer',
       'Correct Answer',
       'Explanation',
       'Elapsed Time'
@@ -573,12 +573,13 @@ describe('AccordionComponent — detail rows are not a list (Variant D)', () => 
     expect(row.querySelector('i.incorrect')).toBeNull();
   });
 
-  it('UNANSWERED: the visible "(no answer provided)" text stays; its X icon is an image named "Incorrect"', async () => {
+  it('UNANSWERED: the visible "(no answer provided)" text stays; its neutral icon is an image named "Unanswered"', async () => {
     const f = await mount(SELECTIONS);
     const row = answerRow(f, 2);
     expect(norm2(row)).toContain('(no answer provided)');
-    expect(row.querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Incorrect');
-    expect(row.querySelector('[role="img"] i.incorrect')!.getAttribute('aria-hidden')).toBe('true');
+    expect(row.querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
+    expect(row.querySelector('[role="img"] i.unanswered')!.getAttribute('aria-hidden')).toBe('true');
+    expect(row.querySelector('i.incorrect')).toBeNull(); // not shown as an incorrect answer
   });
 
   it('adds no ARIA labels (other than the two icon images) or live regions to the rows', async () => {
@@ -728,11 +729,11 @@ describe('AccordionComponent — consolidated detail row sentences (Variant D)',
     expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answer: Option 2 — B, Incorrect');
   });
 
-  it('unanswered: "(no answer provided)" and an X icon image named "Incorrect"', async () => {
+  it('unanswered: "(no answer provided)" and a neutral icon image named "Unanswered"', async () => {
     const f = await mount([single('Q1')], new Map(), [], []);
     expect(rowTexts(f, 0)[0]).toBe('Your Answers: (no answer provided)');
     expect(rowTexts(f, 0)[3]).toBe('Elapsed Time: 0 seconds');
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Incorrect');
+    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
   });
 
   it('empty explanation omits the "because" clause (no dangling full stop)', async () => {
@@ -978,7 +979,7 @@ describe('AccordionComponent — singular/plural answer labels', () => {
     const f = await mount(QUESTIONS, SELECTIONS);
     expect(rowOf(f, 5, 0).label).toBe('Your Answers:');
     expect(rowOf(f, 5, 0).aria).toBe(
-      'Your Answers: (no answer provided), Incorrect'
+      'Your Answers: (no answer provided), Unanswered'
     );
     expect(rowOf(f, 5, 1).label).toBe('Correct Answer:');
   });
@@ -1508,5 +1509,81 @@ describe('AccordionComponent — reveal by question state', () => {
     expect(
       f.nativeElement.querySelectorAll('#qr-body-0 .quiz-summary-text[role="img"]')
     ).toHaveLength(4);
+  });
+});
+
+describe('AccordionComponent — Unanswered is distinct from Incorrect (consistent with the score breakdown)', () => {
+  async function renderWith(userAnswers: unknown[]): Promise<{ fixture: ComponentFixture<AccordionComponent>; comp: AccordionComponent }> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [AccordionComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } }, parent: null } },
+        {
+          provide: QuizService,
+          useValue: {
+            questionsSig: () => QUESTIONS,
+            userAnswers,
+            questions: [],
+            quizId: 'fixture-quiz',
+            setQuizId: jest.fn(),
+            getFinalResultSnapshot: () => null
+          }
+        },
+        { provide: QuizDataService, useValue: { getQuestionsForQuiz: () => ({ pipe: () => ({ subscribe: () => undefined }) }) } },
+        { provide: SelectedOptionService, useValue: { recoverAnswersForResults: jest.fn(), rawSelectionsMap: new Map(), selectedOptionsMap: new Map() } },
+        { provide: TimerService, useValue: { elapsedTimes: [], isCountdown: () => false } }
+      ]
+    });
+    const fixture = TestBed.createComponent(AccordionComponent);
+    fixture.componentRef.setInput('questions', QUESTIONS);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance };
+  }
+
+  it('a skipped question is Unanswered, not Incorrect: counts and filters', async () => {
+    const { fixture, comp } = await renderWith([]); // Q1 was never answered; Q2 reads correct (vacuously)
+    expect(comp.unansweredCount()).toBe(1);
+    expect(comp.incorrectCount()).toBe(0);
+    expect(comp.correctCount()).toBe(1);
+    expect(comp.correctCount() + comp.incorrectCount() + comp.unansweredCount()).toBe(2);
+
+    const labels = filterButtons(fixture).map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim());
+    expect(labels).toEqual(['All (2)', 'Correct (1)', 'Incorrect (0)', 'Unanswered (1)']);
+
+    filterButtons(fixture).find((b) => b.textContent?.includes('Unanswered'))!.click();
+    fixture.detectChanges();
+    expect(comp.reviewFilter()).toBe('unanswered');
+    expect(comp.filteredQuestions().map((q) => q.question.questionText)).toEqual(['Q1']);
+
+    comp.setReviewFilter('incorrect');
+    expect(comp.filteredQuestions()).toEqual([]); // a skipped question is not an incorrect answer
+  });
+
+  it('an attempted incorrect answer stays Incorrect and no Unanswered button appears', async () => {
+    const { fixture, comp } = await renderWith([[2]]); // Q1: the wrong option was selected
+    expect(comp.unansweredCount()).toBe(0);
+    expect(comp.incorrectCount()).toBe(1);
+    const labels = filterButtons(fixture).map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim());
+    expect(labels).toEqual(['All (2)', 'Correct (1)', 'Incorrect (1)']);
+  });
+
+  it('the answer row names a skipped question Unanswered and an attempted wrong one Incorrect', async () => {
+    const skipped = await renderWith([]);
+    (skipped.fixture.nativeElement.querySelectorAll('.qr-header')[0] as HTMLElement).click();
+    skipped.fixture.detectChanges();
+    const skippedRow = skipped.fixture.nativeElement.querySelector('#qr-body-0 [role="img"]') as HTMLElement;
+    expect(skippedRow.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
+    expect(skippedRow.querySelector('i.unanswered')).not.toBeNull();
+
+    const attempted = await renderWith([[2]]);
+    (attempted.fixture.nativeElement.querySelectorAll('.qr-header')[0] as HTMLElement).click();
+    attempted.fixture.detectChanges();
+    const attemptedRow = attempted.fixture.nativeElement.querySelector('#qr-body-0 [role="img"]') as HTMLElement;
+    expect(attemptedRow.getAttribute('aria-label')).toContain(', Incorrect');
+    expect(attemptedRow.querySelector('i.incorrect')).not.toBeNull();
   });
 });

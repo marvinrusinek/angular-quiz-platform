@@ -220,6 +220,10 @@
           color: vars.$red;
           font-weight: vars.$font-weight-max;
         }
+        .unanswered {
+          color: vars.$gray;
+          font-weight: vars.$font-weight-max;
+        }
       }
     }
   }

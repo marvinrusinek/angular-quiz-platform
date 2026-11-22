@@ -82,3 +82,36 @@ describe('ScoreVisualComponent — score breakdown group', () => {
     expect(root.querySelector('.achievement-badge')?.getAttribute('role')).toBe('group'); // now a group (see score-visual-badge.spec.ts)
   });
 });
+
+describe('ScoreVisualComponent — Unanswered row', () => {
+  let fixture: ComponentFixture<ScoreVisualComponent>;
+  let root: HTMLElement;
+  const rows = (): string[] =>
+    Array.from(root.querySelectorAll('.score-breakdown .breakdown-item')).map((r) => (r.textContent ?? '').trim());
+  const exposed = (): string => root.querySelector('.score-breakdown .intro-exposed-text')!.textContent ?? '';
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [ScoreVisualComponent] });
+    fixture = TestBed.createComponent(ScoreVisualComponent);
+    root = fixture.nativeElement as HTMLElement;
+  });
+
+  it('adds nothing when every question was attempted (the three rows are unchanged)', () => {
+    fixture.componentRef.setInput('correctCount', 5);
+    fixture.componentRef.setInput('incorrectCount', 2);
+    fixture.detectChanges();
+    TestBed.tick();
+    expect(rows()).toEqual(['✔ 5 Correct', '✖ 2 Incorrect', '⏱ 0 Timed Out']);
+    expect(exposed()).toBe('5 Correct\n2 Incorrect\n0 Timed Out');
+  });
+
+  it('shows skipped questions as Unanswered, in the visible rows and the single exposed text', () => {
+    fixture.componentRef.setInput('correctCount', 1);
+    fixture.componentRef.setInput('incorrectCount', 0);
+    fixture.componentRef.setInput('unansweredCount', 6);
+    fixture.detectChanges();
+    TestBed.tick();
+    expect(rows()).toEqual(['✔ 1 Correct', '✖ 0 Incorrect', '⏱ 0 Timed Out', '○ 6 Unanswered']);
+    expect(exposed()).toBe('1 Correct\n0 Incorrect\n0 Timed Out\n6 Unanswered');
+  });
+});

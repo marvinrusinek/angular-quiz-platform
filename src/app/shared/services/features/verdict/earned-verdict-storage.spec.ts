@@ -236,3 +236,69 @@ describe('lifecycle', () => {
     expect(toEarnedEntry('', resolvedCorrect())).toBeNull();
   });
 });
+
+describe('a backend-verified PARTIAL attempt survives a reload', () => {
+  const partial = (over: Partial<QuestionVerdictState> = {}) =>
+    state({
+      phase: 'incomplete',
+      selectedOptionTexts: ['a'],
+      selectedVerdicts: new Map([['a', true]]),
+      remainingCorrectCount: 2,
+      ...over
+    });
+
+  beforeEach(() => sessionStorage.clear());
+
+  it('stores the picks, how they were judged and the outstanding count, and nothing else', () => {
+    saveEarnedVerdict(QUIZ, Q, partial());
+    const [entry] = readPayload(QUIZ);
+    expect(entry.phase).toBe('incomplete');
+    expect(entry.selectedVerdicts).toEqual([['a', true]]);
+    expect(entry.remainingCorrectCount).toBe(2);
+    expect(entry.isResolvedCorrect).toBeNull();
+    expect(entry.correctOptionTexts).toBeUndefined(); // no reveal
+    expect(entry.explanation).toBeUndefined();
+  });
+
+  it('an incorrect-only partial response is stored as an attempt (nothing is credited)', () => {
+    saveEarnedVerdict(QUIZ, Q, partial({ selectedVerdicts: new Map([['x', false]]), remainingCorrectCount: 3 }));
+    expect(readPayload(QUIZ)[0].selectedVerdicts).toEqual([['x', false]]);
+  });
+
+  it('a partial response with nothing selected is no attempt, and clears a stored one', () => {
+    saveEarnedVerdict(QUIZ, Q, partial());
+    expect(readPayload(QUIZ)).toHaveLength(1);
+    saveEarnedVerdict(QUIZ, Q, partial({ selectedOptionTexts: [], selectedVerdicts: new Map() }));
+    expect(readPayload(QUIZ)).toEqual([]);
+  });
+
+  it('a partial response with no outstanding count is not stored', () => {
+    saveEarnedVerdict(QUIZ, Q, partial({ remainingCorrectCount: null }));
+    saveEarnedVerdict(QUIZ, Q, partial({ remainingCorrectCount: 0 }));
+    expect(readPayload(QUIZ)).toEqual([]);
+  });
+
+  it('later answers replace the stored partial attempt (partial then fully correct)', () => {
+    saveEarnedVerdict(QUIZ, Q, partial());
+    saveEarnedVerdict(QUIZ, Q, resolvedCorrect());
+    const entries = readPayload(QUIZ);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].phase).toBe('resolved');
+  });
+
+  it('a hand-written partial entry without picks or a positive count is rejected', () => {
+    sessionStorage.setItem(
+      'earnedVerdicts:v1:' + QUIZ,
+      JSON.stringify({
+        v: 1,
+        quizId: QUIZ,
+        entries: [
+          { questionText: Q, phase: 'incomplete', selectedVerdicts: [['a', true]], isResolvedCorrect: null },
+          { questionText: Q + '2', phase: 'incomplete', selectedVerdicts: [['a', true]], isResolvedCorrect: null, remainingCorrectCount: 0 },
+          { questionText: Q + '3', phase: 'resolved', selectedVerdicts: [['a', true]], isResolvedCorrect: true, remainingCorrectCount: 1 }
+        ]
+      })
+    );
+    expect(readPayload(QUIZ)).toEqual([]);
+  });
+});

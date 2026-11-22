@@ -17,7 +17,9 @@ import { QuizMetadata, QuizStatus, Resource } from '@shared/models';
 import { TopicQuizMetadataService } from '@shared/services/api/topic-quiz-metadata.service';
 import { TopicQuizResourcesService } from '@shared/services/api/topic-quiz-resources.service';
 import { QuizService } from '@shared/services/data/quiz.service';
+import { QuestionVerdictService } from '@shared/services/features/verdict/question-verdict.service';
 import { TimerService } from '@shared/services/features/timer/timer.service';
+import { wasQuestionAttempted } from '@shared/utils/question-attempt';
 
 import { IntroExposedTextDirective } from '../../introduction/intro-exposed-text.directive';
 import { ScoreVisualComponent } from './score-visual/score-visual.component';
@@ -36,6 +38,7 @@ export class StatisticsComponent implements OnInit {
   private readonly metadataApi = inject(TopicQuizMetadataService);
   private readonly quizService = inject(QuizService);
   private readonly timerService = inject(TimerService);
+  private readonly verdicts = inject(QuestionVerdictService);
   private readonly resourcesApi = inject(TopicQuizResourcesService);
   private readonly cdRef = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -71,8 +74,27 @@ export class StatisticsComponent implements OnInit {
   // ── score breakdown (Correct / Incorrect / Timed Out) ───────────
   readonly totalCount = computed(() => this.quizMetadata().totalQuestions ?? 0);
   readonly correctCount = computed(() => this.quizMetadata().correctAnswersCount?.() ?? 0);
-  readonly incorrectCount = computed(() => Math.max(0, this.totalCount() - this.correctCount()));
   readonly timedOutCount = computed(() => this.countTimedOutQuestions());
+  /**
+   * Questions the player never attempted. A skipped question (a quiz finished from the last question, jumping past earlier ones)
+   * is reported as Unanswered, not as an incorrect answer. Nothing is invented for it: no answer, no expiry, no credit.
+   * Attempted = the backend has a verdict for it (correct, incorrect, partial or expired) or an answer was recorded; a question
+   * that timed out is counted under Timed Out, not here.
+   */
+  readonly unansweredCount = computed(() => {
+    this.verdicts.states(); // re-evaluate as verdicts arrive
+    const total = this.totalCount();
+    const timedOut = this.timedOutIndices();
+    let count = 0;
+    for (let i = 0; i < total; i++) {
+      if (timedOut.has(i)) continue;
+      if (!this.wasAttempted(i)) count++;
+    }
+    return count;
+  });
+  readonly incorrectCount = computed(() =>
+    Math.max(0, this.totalCount() - this.correctCount() - this.unansweredCount())
+  );
 
   readonly feedbackLevel = computed<'excellent' | 'good' | 'poor'>(() => {
     const pct = this.percentage();
@@ -258,6 +280,20 @@ export class StatisticsComponent implements OnInit {
     this.resourcesStatus.set('loading');
     this.cdRef.markForCheck();
     this.fetchResources();
+  }
+
+  private timedOutIndices(): Set<number> {
+    const set = new Set<number>();
+    if (!this.timerService.isCountdown()) return set;
+    const duration = this.timerService.timePerQuestion;
+    if (duration <= 0) return set;
+    const elapsed = this.timerService.elapsedTimes ?? [];
+    for (let i = 0; i < this.totalCount(); i++) if ((elapsed[i] ?? 0) >= duration) set.add(i);
+    return set;
+  }
+
+  private wasAttempted(index: number): boolean {
+    return wasQuestionAttempted(this.quizService, this.verdicts, index);
   }
 
   private countTimedOutQuestions(): number {

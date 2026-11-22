@@ -67,6 +67,19 @@
         [attr.aria-checked]="wIncorrect.selected()"
         i18n
       >Incorrect ({{ incorrectCount() }})</button>
+      @if (unansweredCount() > 0) {
+        <button
+          ngToolbarWidget
+          #wUnanswered="ngToolbarWidget"
+          [value]="'unanswered'"
+          type="button"
+          class="review-filter-btn"
+          [class.active]="reviewFilter() === 'unanswered'"
+          role="radio"
+          [attr.aria-checked]="wUnanswered.selected()"
+          i18n
+        >Unanswered ({{ unansweredCount() }})</button>
+      }
     </div>
   </div>
 }
@@ -159,6 +172,9 @@
                 {{ answerRow.value }}@switch (answer.state) {
                   @case ('correct') {
                     <i class="material-icons correct" aria-hidden="true">done</i>
+                  }
+                  @case ('unanswered') {
+                    <i class="material-icons unanswered" aria-hidden="true">remove</i>
                   }
                   @default {
                     <i class="material-icons incorrect" aria-hidden="true">clear</i>

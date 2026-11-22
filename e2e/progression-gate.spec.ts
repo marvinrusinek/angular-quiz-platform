@@ -309,7 +309,7 @@ test.describe('Directly opened question — revisit restoration and Results elig
 
   for (const route of ['URL', 'progress dot'] as const) {
     for (const kind of ['incorrect', 'correct'] as const) {
-      test(`last question reached by ${route}, earlier questions untouched, ${kind} selection: Show Results is enabled and opens Results`, async ({ page }) => {
+      test(`last question reached by ${route}, earlier questions untouched, ${kind} selection: Show Results is enabled and opens Results with the skipped questions Unanswered`, async ({ page }) => {
         await startViaUi(page, /fixture widgets/i);
         const last = widgetsQuiz.questions.length;
         if (route === 'URL') {
@@ -336,6 +336,9 @@ test.describe('Directly opened question — revisit restoration and Results elig
 
         await page.locator(RESULTS_BTN).click();
         await page.waitForURL(//quiz/results//, { timeout: 15_000 });
+        const total = widgetsQuiz.questions.length;
+        // the skipped questions are reported as Unanswered, not as incorrect answers
+        await expect(page.locator('.score-breakdown').first()).toContainText(`${total - 1} Unanswered`, { timeout: 15_000 });
       });
     }
   }

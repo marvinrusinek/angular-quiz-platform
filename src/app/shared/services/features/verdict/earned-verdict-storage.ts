@@ -12,8 +12,9 @@ import { QuestionVerdictState } from './question-verdict.types';
  *
  * ── The security boundary ─────────────────────────────────────────
  *
- * ONLY questions whose authorized `/check` has already come back terminal are
- * written here, and only the facts that check already put on the user's screen:
+ * ONLY questions whose authorized `/check` has already come back are written here
+ * (a terminal verdict, or a backend-verified PARTIAL attempt on a multiple-answer
+ * question), and only the facts that check already put on the user's screen:
  *
  *   - how their OWN picks were judged (`selectedVerdicts`)
  *   - whether the question resolved correct (`isResolvedCorrect`)
@@ -41,8 +42,11 @@ const SCHEMA_VERSION = 1;
 
 const STORAGE_PREFIX = 'earnedVerdicts:v1:';
 
-/** Only terminal phases are ever persisted — a pending check has earned nothing. */
-type EarnedPhase = 'resolved' | 'expired';
+/**
+ * Terminal phases, and a backend-verified PARTIAL attempt (`incomplete` with at least one selection), are persisted. A pending
+ * check has earned nothing, and a partial response with nothing selected is no attempt at all.
+ */
+type EarnedPhase = 'resolved' | 'expired' | 'incomplete';
 
 /**
  * The minimum a restore needs. Deliberately NOT the whole QuestionVerdictState:
@@ -56,6 +60,8 @@ export interface EarnedVerdictEntry {
   /** The user's OWN picks and how each was judged. */
   readonly selectedVerdicts: readonly (readonly [string, boolean])[];
   readonly isResolvedCorrect: boolean | null;
+  /** `incomplete` only: how many correct options were still outstanding (shown to the user by that response). */
+  readonly remainingCorrectCount?: number;
   /** Present ONLY when the server already revealed it for this question. */
   readonly correctOptionTexts?: readonly string[];
   /** Present ONLY when the server already released it for this question. */
@@ -73,7 +79,7 @@ function keyFor(quizId: string): string {
 }
 
 function isTerminal(phase: string): phase is EarnedPhase {
-  return phase === 'resolved' || phase === 'expired';
+  return phase === 'resolved' || phase === 'expired' || phase === 'incomplete';
 }
 
 /** Structural validation. Anything unexpected fails the whole entry. */
@@ -92,6 +98,15 @@ function validEntry(raw: unknown): raw is EarnedVerdictEntry {
 
   const resolved = e['isResolvedCorrect'];
   if (resolved !== null && typeof resolved !== 'boolean') return false;
+
+  if (e['phase'] === 'incomplete') {
+    // A partial attempt always carries its own picks and a positive outstanding count; anything else is discarded.
+    if ((e['selectedVerdicts'] as unknown[]).length === 0) return false;
+    const remaining = e['remainingCorrectCount'];
+    if (typeof remaining !== 'number' || !Number.isInteger(remaining) || remaining < 1) return false;
+  } else if (e['remainingCorrectCount'] !== undefined) {
+    return false;
+  }
 
   if (e['correctOptionTexts'] !== undefined) {
     if (!Array.isArray(e['correctOptionTexts'])) return false;
@@ -118,6 +133,7 @@ export function toEarnedEntry(
     phase: EarnedPhase;
     selectedVerdicts: (readonly [string, boolean])[];
     isResolvedCorrect: boolean | null;
+    remainingCorrectCount?: number;
     correctOptionTexts?: readonly string[];
     explanation?: string;
   } = {
@@ -128,6 +144,14 @@ export function toEarnedEntry(
     ),
     isResolvedCorrect: state.isResolvedCorrect ?? null
   };
+
+  if (state.phase === 'incomplete') {
+    // A partial attempt is only an attempt while something is selected and correct answers are still outstanding.
+    const remaining = state.remainingCorrectCount;
+    if (state.selectedOptionTexts.length === 0 || entry.selectedVerdicts.length === 0 || typeof remaining !== 'number' || remaining < 1) return null;
+    entry.remainingCorrectCount = remaining;
+    return entry; // no reveal fields: a partial attempt discloses nothing beyond how its own picks were judged
+  }
 
   if (state.correctOptionTexts && state.correctOptionTexts.length > 0) {
     entry.correctOptionTexts = [...state.correctOptionTexts];
@@ -145,7 +169,12 @@ export function saveEarnedVerdict(
   state: QuestionVerdictState
 ): void {
   const entry = toEarnedEntry(questionText, state);
-  if (!quizId || !entry) return;
+  if (!quizId) return;
+  if (!entry) {
+    // A partial answer deselected back to nothing is no attempt: forget the stored one so a reload cannot resurrect it.
+    if (state.phase === 'incomplete') removeEarnedVerdict(quizId, questionText);
+    return;
+  }
 
   try {
     const existing = readPayload(quizId);
@@ -155,6 +184,17 @@ export function saveEarnedVerdict(
   } catch {
     // Storage full, disabled, or unavailable — restore is a convenience, never
     // a correctness requirement, so a failure to persist is silent.
+  }
+}
+
+/** Forget one question's stored attempt (its picks were all removed). */
+function removeEarnedVerdict(quizId: string, questionText: string): void {
+  try {
+    const remaining = readPayload(quizId).filter((e) => e.questionText !== questionText);
+    const payload: EarnedVerdictPayload = { v: SCHEMA_VERSION, quizId, entries: remaining };
+    sessionStorage.setItem(keyFor(quizId), JSON.stringify(payload));
+  } catch {
+    // best effort
   }
 }
 

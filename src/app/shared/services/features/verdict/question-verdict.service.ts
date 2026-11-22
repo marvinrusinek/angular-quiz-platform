@@ -382,6 +382,10 @@ export class QuestionVerdictService {
       // user — never a key, and nothing for a question they have not answered.
       saveEarnedVerdict(quizId, questionText, state);
       this._terminal.next({ quizId, questionText, state });
+    } else if (state.phase === 'incomplete') {
+      // A backend-verified PARTIAL attempt survives a reload too, so it is not mistaken for an unanswered question. It is
+      // stored, never announced as terminal: it earns no credit and reveals nothing.
+      saveEarnedVerdict(quizId, questionText, state);
     }
   }
 
@@ -414,9 +418,9 @@ export class QuestionVerdictService {
         phase: entry.phase,
         selectedOptionTexts: entry.selectedVerdicts.map(([text]) => text),
         selectedVerdicts: new Map(entry.selectedVerdicts.map(([t, c]) => [t, c])),
-        // Never persisted: it is only meaningful for the `incomplete` phase,
-        // and a terminal question has nothing outstanding.
-        remainingCorrectCount: entry.phase === 'resolved' ? 0 : null,
+        // Terminal questions have nothing outstanding; a restored partial attempt keeps its own outstanding count.
+        remainingCorrectCount:
+          entry.phase === 'resolved' ? 0 : entry.phase === 'incomplete' ? (entry.remainingCorrectCount ?? null) : null,
         correctOptionTexts: entry.correctOptionTexts ?? [],
         explanation: entry.explanation ?? null,
         isResolvedCorrect: entry.isResolvedCorrect

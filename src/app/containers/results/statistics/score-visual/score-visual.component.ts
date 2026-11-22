@@ -24,6 +24,8 @@ export class ScoreVisualComponent {
   readonly correctCount = input<number>(0);
   readonly incorrectCount = input<number>(0);
   readonly timedOutCount = input<number>(0);
+  /** Questions never attempted (and not timed out). The row only appears when there are some. */
+  readonly unansweredCount = input<number>(0);
   readonly starCount = input<number>(0);
   readonly starsAria = computed(() => {
     const n = this.starCount();
@@ -49,8 +51,14 @@ export class ScoreVisualComponent {
   readonly correctText = computed(() => $localize`${this.correctCount()} Correct`);
   readonly incorrectText = computed(() => $localize`${this.incorrectCount()} Incorrect`);
   readonly timedOutText = computed(() => $localize`${this.timedOutCount()} Timed Out`);
+  readonly unansweredText = computed(() => $localize`${this.unansweredCount()} Unanswered`);
   /** One line per visible row; the group exposes it as ONE text item. */
   readonly breakdownExposedText = computed(() =>
-    [this.correctText(), this.incorrectText(), this.timedOutText()].join('\n')
+    [
+      this.correctText(),
+      this.incorrectText(),
+      this.timedOutText(),
+      ...(this.unansweredCount() > 0 ? [this.unansweredText()] : [])
+    ].join('\n')
   );
 }

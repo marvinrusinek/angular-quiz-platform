@@ -28,13 +28,15 @@ import { QuizDataService } from '@shared/services/data/quizdata.service';
 import { QuizService } from '@shared/services/data/quiz.service';
 import { SelectedOptionService } from '@shared/services/state/selectedoption.service';
 import { TimerService } from '@shared/services/features/timer/timer.service';
+import { QuestionVerdictService } from '@shared/services/features/verdict/question-verdict.service';
 
 import { norm } from '@shared/utils/text-norm';
+import { wasQuestionAttempted } from '@shared/utils/question-attempt';
 import { swallow } from '@shared/utils/error-logging';
 import { CodeSnippetComponent } from '../../../components/code-snippet/code-snippet.component';
 import { ReviewHeaderDirective } from './review-header.directive';
 
-export type ReviewFilter = 'all' | 'incorrect' | 'correct';
+export type ReviewFilter = 'all' | 'incorrect' | 'correct' | 'unanswered';
 
 // Collapses runs of whitespace like HTML rendering did, so the row text is identical to what the template showed.
 const oneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();
@@ -70,6 +72,7 @@ export class AccordionComponent implements OnInit {
   private readonly quizDataService = inject(QuizDataService);
   private readonly quizService = inject(QuizService);
   private readonly selectedOptionService = inject(SelectedOptionService);
+  private readonly verdicts = inject(QuestionVerdictService);
   private readonly timerService = inject(TimerService);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -133,7 +136,12 @@ export class AccordionComponent implements OnInit {
       case 'correct':
         return withIndex.filter(({ question, index }) => this.isQuestionCorrect(question, index));
       case 'incorrect':
-        return withIndex.filter(({ question, index }) => !this.isQuestionCorrect(question, index));
+        return withIndex.filter(
+          ({ question, index }) =>
+            !this.isQuestionCorrect(question, index) && !this.isQuestionUnanswered(question, index)
+        );
+      case 'unanswered':
+        return withIndex.filter(({ question, index }) => this.isQuestionUnanswered(question, index));
       default:
         return withIndex;
     }
@@ -144,7 +152,25 @@ export class AccordionComponent implements OnInit {
     () =>
       this.questions().filter((question, index) => this.isQuestionCorrect(question, index)).length
   );
-  readonly incorrectCount = computed(() => this.questions().length - this.correctCount());
+  /** Skipped questions: shown as Unanswered, the same as the score breakdown, never as incorrect answers. */
+  readonly unansweredCount = computed(
+    () =>
+      this.questions().filter((question, index) => this.isQuestionUnanswered(question, index)).length
+  );
+  readonly incorrectCount = computed(
+    () => this.questions().length - this.correctCount() - this.unansweredCount()
+  );
+
+  /**
+   * A question nobody attempted: nothing selected or recorded, no backend verdict for it, and it did not time out (a timed-out
+   * question is reported under Timed Out, as in the score breakdown).
+   */
+  isQuestionUnanswered(question: QuizQuestion, questionIndex: number): boolean {
+    if (this.isQuestionTimedOut(questionIndex)) return false;
+    if (this.yourAnswerBase(question, questionIndex).state !== 'none') return false;
+    if (this.isQuestionCorrect(question, questionIndex)) return false; // a question can only be one of correct / unanswered
+    return !wasQuestionAttempted(this.quizService, this.verdicts, questionIndex);
+  }
 
   /**
    * Authoritative per-question correctness for the review. Prefers the persisted
@@ -339,10 +365,19 @@ export class AccordionComponent implements OnInit {
   yourAnswerRow(
     question: QuizQuestion,
     index: number
-  ): { text: string; state: 'correct' | 'incorrect' | 'none'; name: string } {
+  ): { text: string; state: 'correct' | 'incorrect' | 'none' | 'unanswered'; name: string } {
     const base = this.yourAnswerBase(question, index);
-    const verdict = base.state === 'correct' ? $localize`Correct` : $localize`Incorrect`;
-    return { ...base, name: oneLine($localize`${base.text}:text:, ${verdict}:verdict:`) };
+    const unanswered = this.isQuestionUnanswered(question, index);
+    const verdict = unanswered
+      ? $localize`Unanswered`
+      : base.state === 'correct'
+        ? $localize`Correct`
+        : $localize`Incorrect`;
+    return {
+      ...base,
+      state: unanswered ? 'unanswered' : base.state,
+      name: oneLine($localize`${base.text}:text:, ${verdict}:verdict:`)
+    };
   }
 
   /** Splits "<label>: <value>" at the first ": " so the label can be styled separately (bold-label variant). */

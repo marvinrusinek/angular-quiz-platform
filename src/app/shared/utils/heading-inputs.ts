@@ -139,6 +139,10 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
   const verdictAnsweredCorrectly =
     !!verdict && verdict.phase !== 'expired' && verdictComplete === true;
 
+  // EXPIRED, as the server's verdict states it. The local timer reaching zero is NOT this: only a verdict whose phase is
+  // `expired` (issued by the backend from the signed deadline) authorizes showing the explanation on a revisit.
+  const verdictExpired = !!verdict && verdict.phase === 'expired';
+
   // Single-answer "answered correctly", from the user's OWN verdicted pick.
   //
   // `idle` used to fall back to matching the selection against the pristine
@@ -195,20 +199,34 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
   // The composed explanation of a correctly answered question is remembered (by quiz + question text) the moment it exists,
   // because moving between questions purges the primary stores. A revisit then re-shows the SAME composed text instead of
   // the verdict's raw explanation. Only text from the primary stores is remembered, and only for a verdict-correct answer.
+  // The pipeline can store the literal placeholder "No explanation available" in these stores for a question it has not
+  // composed yet (it is re-created on arrival at a revisited question). A placeholder is not an explanation: it must
+  // neither shadow the remembered composed text nor be remembered itself.
+  const isPlaceholder = (s: string): boolean => /^no explanation available\.?$/i.test(s.trim());
+  const realOrEmpty = (s: string): string => (isPlaceholder(s) ? '' : s);
   const primaryFet =
-    (ets.formattedExplanations?.[idx]?.explanation ?? '') || (ets.fetByIndex?.get?.(idx) ?? '');
+    realOrEmpty(ets.formattedExplanations?.[idx]?.explanation ?? '') ||
+    realOrEmpty(ets.fetByIndex?.get?.(idx) ?? '');
   // The composed text names options BY NUMBER ("Option 2 is correct because…"), so it is only valid for the option order
   // it was composed for. The key therefore carries the displayed option order as well as the quiz and the question text:
   // a reshuffled or retaken attempt (a different order) can never be handed another attempt's numbering.
   const optionOrder = ((dq.options ?? []) as any[]).map((o) => norm(o?.text)).join('|');
   const answeredKey = `${d.quizService.quizId ?? ''}::${qText}::${optionOrder}`;
-  if (verdictAnsweredCorrectly && primaryFet.trim().length > 0) {
-    ets.answeredFetByQuestion?.set?.(answeredKey, primaryFet);
+  const isRevisit = d.quizNavigationService.isNavigatingToPreviousSig?.() === true;
+  const rememberable = verdictAnsweredCorrectly || verdictExpired;
+  // An expired question's composed text may also live in the (index-keyed) timeout store; it is only trusted for
+  // remembering on the live view, never on a revisit, where the index could belong to a different question.
+  const rememberSource =
+    primaryFet || (verdictExpired && !isRevisit ? (ets.timeoutFetByIndex?.get?.(idx) ?? '') : '');
+  if (rememberable && rememberSource.trim().length > 0) {
+    ets.answeredFetByQuestion?.set?.(answeredKey, rememberSource);
   }
   const _fetHtml = withTerminalPeriod(
     primaryFet ||
-      (verdictAnsweredCorrectly ? (ets.answeredFetByQuestion?.get?.(answeredKey) ?? '') : '') || // durable (purge-proof)
-      (ets.timeoutFetByIndex?.get?.(idx) ?? '') || // durable timeout FET (purge-proof)
+      (rememberable ? (ets.answeredFetByQuestion?.get?.(answeredKey) ?? '') : '') || // durable (purge-proof)
+      // The index-keyed timeout store is not consulted on a revisit: after a restart or reshuffle the same index can be a
+      // different question.
+      (isRevisit ? '' : (ets.timeoutFetByIndex?.get?.(idx) ?? '')) || // durable timeout FET (purge-proof)
       // Last resort: the verdict's own raw explanation, so an authorized reveal
       // is never silently blank when the formatter has not run.
       authorizedExplanation
@@ -255,6 +273,7 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
     interactedThisVisit: d.quizStateService.wasInteractedThisVisit?.(idx) === true,
     deferFeedback: d.feedbackPolicyService?.feedbackMode?.() === 'deferred',
     verdictEarnedReveal,
-    verdictAnsweredCorrectly
+    verdictAnsweredCorrectly,
+    verdictExpired
   };
 }

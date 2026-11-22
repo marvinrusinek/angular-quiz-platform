@@ -310,7 +310,7 @@ describe('FET eligibility: incorrect/incomplete attempts must not earn the revea
     expect(headingFor(over)).toBe(AUTHORIZED_EXPLANATION);
   });
 
-  it('a same-session Previous-revisit of a wrong, partial or timed-out question still shows the question', () => {
+  it('a same-session Previous-revisit of a wrong or partial question (no authorized expiry) still shows the question', () => {
     const wrong: DepsOverrides = {
       questionType: QuestionType.SingleAnswer,
       selectedOptionTexts: [WRONG_TEXT],
@@ -336,19 +336,36 @@ describe('FET eligibility: incorrect/incomplete attempts must not earn the revea
       isNavigatingToPrevious: true
     };
     expect(showsFetFor(partial)).toBe(false);
+  });
 
+  // SUPERSEDED RULE: a Previous-revisit of a TIMED-OUT question used to show the question. A question whose verdict is
+  // EXPIRED (declared by the server) now shows its explanation again; the local timer alone never authorizes it.
+  it('a same-session Previous-revisit of a question with an EXPIRED verdict shows its explanation again', () => {
     const expired: DepsOverrides = {
       questionType: QuestionType.SingleAnswer,
-      selectedOptionTexts: [RIGHT_TEXT],
+      selectedOptionTexts: [],
       verdictPhase: 'expired',
-      isResolvedCorrect: true,
-      selectedVerdicts: [[RIGHT_TEXT.toLowerCase(), true]],
       explanation: AUTHORIZED_EXPLANATION,
-      hasInteracted: true,
+      hasInteracted: false,
       interactedThisVisit: false,
       isNavigatingToPrevious: true
     };
-    expect(showsFetFor(expired)).toBe(false);
-    expect(headingFor(expired)).toBe(QUESTION);
+    expect(showsFetFor(expired)).toBe(true);
+    expect(headingFor(expired)).toBe(AUTHORIZED_EXPLANATION);
+  });
+
+  it('without an expired verdict, a local timer reaching zero on a revisit does not reveal the explanation', () => {
+    const noVerdict: DepsOverrides = {
+      questionType: QuestionType.SingleAnswer,
+      selectedOptionTexts: [],
+      verdictPhase: 'idle',
+      explanation: AUTHORIZED_EXPLANATION,
+      hasInteracted: false,
+      interactedThisVisit: false,
+      isNavigatingToPrevious: true,
+      isTimedOut: false
+    };
+    expect(showsFetFor(noVerdict)).toBe(false);
+    expect(headingFor(noVerdict)).toBe(QUESTION);
   });
 });

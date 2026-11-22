@@ -82,6 +82,12 @@ export interface HeadingInputs {
    *  so this exempts it from the revisit guard; every other revisit is unchanged. Optional: undefined behaves as
    *  `false`. */
   verdictAnsweredCorrectly?: boolean;
+
+  /** The authoritative verdict is EXPIRED: the server (not the local timer) declared this question's deadline passed. A
+   *  revisit of such a question shows its stored explanation again, exactly as a correctly answered one does, so this
+   *  exempts it from the revisit guard too. The local timer reaching zero is never enough: only a verdict whose phase is
+   *  `expired` sets this. Optional: undefined behaves as `false`. */
+  verdictExpired?: boolean;
 }
 
 /**
@@ -92,8 +98,9 @@ export interface HeadingInputs {
  *  - Cold load (options not ready) never shows the FET — only the question.
  *  - On a revisit (navigated here, not re-answered) the FET is suppressed for a
  *    timed-out, wrong, partial or unanswered question; it shows only on the live
- *    answer view. A question the verdict says was ANSWERED CORRECTLY is the
- *    exception: its stored explanation shows again on a revisit.
+ *    answer view. A question the verdict says was ANSWERED CORRECTLY, or whose
+ *    verdict is EXPIRED (declared by the server), is the exception: its stored
+ *    explanation shows again on a revisit.
  *  - A first-time timeout on the live view reveals the FET (no interaction).
  *  - Otherwise the FET shows only after a real interaction AND the question is
  *    "done": multi-answer fully selected, or single-answer answered correctly.
@@ -125,7 +132,8 @@ export function shouldShowFet(i: HeadingInputs): boolean {
     i.isNavigatingToPrevious &&
     !i.interactedThisVisit &&
     !i.isTimedOut &&
-    i.verdictAnsweredCorrectly !== true
+    i.verdictAnsweredCorrectly !== true &&
+    i.verdictExpired !== true
   ) {
     return false;
   }

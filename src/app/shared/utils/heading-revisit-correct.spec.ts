@@ -36,6 +36,10 @@ interface Over {
   deferred?: boolean;
   /** The displayed option order (a reshuffled attempt shows the same options in a different order). */
   options?: string[];
+  /** The browser landed on this question by DIRECT URL ENTRY (and has not left it in the app). */
+  directEntry?: boolean;
+  /** The verdict's authorized correct option texts (default: [RIGHT]). */
+  correctTexts?: string[];
 }
 
 function makeDeps(over: Over, ets: any) {
@@ -67,7 +71,10 @@ function makeDeps(over: Over, ets: any) {
         hasUserInteracted: () => state.hasInteracted,
         wasInteractedThisVisit: () => state.interactedThisVisit
       },
-      quizNavigationService: { isNavigatingToPreviousSig: () => over.revisit === true },
+      quizNavigationService: {
+        isNavigatingToPreviousSig: () => over.revisit === true,
+        directEntryIndexSig: () => (over.directEntry ? 0 : null)
+      },
       quizQuestionManagerService: { getNumberOfCorrectAnswersText: () => '' },
       feedbackPolicyService: { feedbackMode: () => (over.deferred ? 'deferred' : 'immediate') },
       questionVerdictService: over.phase
@@ -77,7 +84,7 @@ function makeDeps(over: Over, ets: any) {
               selectedOptionTexts: selected,
               selectedVerdicts: new Map(over.verdicts ?? []),
               remainingCorrectCount: over.remaining ?? null,
-              correctOptionTexts: [RIGHT],
+              correctOptionTexts: over.correctTexts ?? [RIGHT],
               explanation: over.raw ?? null,
               isResolvedCorrect: over.resolvedCorrect ?? null
             }),
@@ -287,6 +294,245 @@ describe('revisiting a question whose verdict is EXPIRED (timeout → Next → P
     const ets = newStores();
     ets.answeredFetByQuestion.set(`change-detection::${QUESTION_A}::${ORDER_1}`, COMPOSED_A);
     expect(heading({ ...expiredBase, deferred: true }, ets)).toBe(QUESTION_A);
+  });
+});
+
+describe('DIRECT URL ENTRY shows the question text; in-app revisits keep the accepted restoration', () => {
+  const answeredCorrectly = (ets: any) => {
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    heading({ ...correctSingle, revisit: false }, ets); // the live reveal (remembers the composed text)
+    ets.formattedExplanations = {};
+  };
+
+  it('a previously CORRECT question entered by direct URL shows its question text, whatever is stored or cached', () => {
+    const ets = newStores();
+    answeredCorrectly(ets);
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A }; // even a primary-store cache hit
+    expect(heading({ ...correctSingle, directEntry: true }, ets)).toBe(QUESTION_A);
+  });
+
+  it('the SAME question reached by an in-app revisit (Next → Previous) restores its explanation', () => {
+    const ets = newStores();
+    answeredCorrectly(ets);
+    expect(heading({ ...correctSingle, revisit: true, directEntry: false }, ets)).toBe(COMPOSED_A);
+  });
+
+  it('once the user leaves the direct-entry question and comes back, the explanation is restored', () => {
+    const ets = newStores();
+    answeredCorrectly(ets);
+    expect(heading({ ...correctSingle, directEntry: true }, ets)).toBe(QUESTION_A); // arrival by URL
+    expect(heading({ ...correctSingle, revisit: true, directEntry: false }, ets)).toBe(COMPOSED_A); // after an in-app trip
+  });
+
+  it('a previously EXPIRED (server-confirmed) question entered by direct URL shows its question text', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    const expired: Over = { phase: 'expired', raw: RAW_A };
+    heading({ ...expired }, ets); // the live reveal remembers the composed text
+    ets.formattedExplanations = {};
+    expect(heading({ ...expired, directEntry: true }, ets)).toBe(QUESTION_A);
+    expect(heading({ ...expired, revisit: true, directEntry: false }, ets)).toBe(COMPOSED_A); // in-app revisit
+  });
+
+  it('a fully correct MULTIPLE-answer question entered by direct URL shows its question text', () => {
+    const ets = newStores();
+    const multi: Over = {
+      type: QuestionType.MultipleAnswer,
+      selected: [RIGHT, OTHER_RIGHT],
+      phase: 'incomplete',
+      remaining: 0,
+      verdicts: [
+        [RIGHT.toLowerCase(), true],
+        [OTHER_RIGHT.toLowerCase(), true]
+      ],
+      raw: RAW_A
+    };
+    ets.formattedExplanations[0] = { explanation: 'Options 1 and 3 are correct because both keep the view in sync.' };
+    expect(heading({ ...multi, directEntry: true }, ets)).toBe(QUESTION_A);
+    expect(heading({ ...multi, revisit: true }, ets)).toContain('Options 1 and 3 are correct');
+  });
+
+  it('wrong, partial and unanswered questions entered by direct URL show their question text', () => {
+    const ets = newStores();
+    const wrong: Over = { selected: [WRONG], phase: 'resolved', resolvedCorrect: false, verdicts: [[WRONG.toLowerCase(), false]], raw: RAW_A };
+    const partial: Over = { type: QuestionType.MultipleAnswer, selected: [RIGHT], phase: 'incomplete', remaining: 1, verdicts: [[RIGHT.toLowerCase(), true]] };
+    expect(heading({ ...wrong, directEntry: true }, ets)).toBe(QUESTION_A);
+    expect(heading({ ...partial, directEntry: true }, ets)).toBe(QUESTION_A);
+    expect(heading({ directEntry: true }, ets)).toBe(QUESTION_A);
+  });
+
+  it('a genuine answer completion during the current visit still reveals the explanation', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    const { deps, state } = makeDeps({ ...correctSingle, directEntry: true }, ets);
+    state.interactedThisVisit = true; // the user answered on this visit
+    expect(deriveHeadingHtml({ ...buildHeadingInputs(deps)!, optionsReady: true })).toBe(COMPOSED_A);
+  });
+
+  it('a LIVE timeout during the current visit still reveals the explanation', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    expect(heading({ phase: 'expired', raw: RAW_A, timedOut: true, directEntry: true }, ets)).toBe(COMPOSED_A);
+  });
+
+  it('Interview Mode (deferred feedback) is unchanged: always the question text', () => {
+    const ets = newStores();
+    answeredCorrectly(ets);
+    expect(heading({ ...correctSingle, directEntry: true, deferred: true }, ets)).toBe(QUESTION_A);
+  });
+
+  it('showing the question text on direct entry marks nothing: selections and flags are untouched', () => {
+    const ets = newStores();
+    answeredCorrectly(ets);
+    const { deps, state } = makeDeps({ ...correctSingle, directEntry: true }, ets);
+    const inputs = buildHeadingInputs(deps)!;
+    expect(shouldShowFet({ ...inputs, optionsReady: true })).toBe(false);
+    expect(inputs.interactedThisVisit).toBe(false);
+    expect(state.hasInteracted).toBe(true); // the durable evidence of the earlier answer is kept
+    expect(deps.selectedOptionService.selectedOptionsMap.get(0)).toHaveLength(1);
+  });
+});
+
+describe('multiple answer: tab away → return → ONE correct pick while more remain', () => {
+  // A tab switch changes no heading input (no verdict, selection or deadline is touched by returning), so the inputs after
+  // the return are the same as before it. What must hold: one correct pick (a resolved/partial verdict with correct
+  // answers still remaining) and any cached text never authorize the explanation; only full completion (remaining 0) or an
+  // authoritative expiry does.
+  const partial = (remaining: number, selected: string[]): Over => ({
+    type: QuestionType.MultipleAnswer,
+    selected,
+    phase: 'incomplete',
+    remaining,
+    verdicts: selected.map((s) => [s.toLowerCase(), true] as [string, boolean]),
+    raw: RAW_A
+  });
+  const live = (over: Over, ets: any) => {
+    const { deps, state } = makeDeps(over, ets);
+    state.interactedThisVisit = true; // the user is answering on this visit
+    return deriveHeadingHtml({ ...buildHeadingInputs(deps)!, optionsReady: true });
+  };
+
+  it('one correct pick with two correct answers remaining keeps the question text, even with cached explanations', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A }; // a cache hit must not authorize the reveal
+    ets.answeredFetByQuestion.set(`change-detection::${QUESTION_A}::${ORDER_1}`, COMPOSED_A);
+    expect(live(partial(2, [RIGHT]), ets)).toBe(QUESTION_A);
+  });
+
+  it('a resolved-INCORRECT response is not completion either', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    expect(live({ ...partial(1, [RIGHT]), phase: 'resolved', resolvedCorrect: false }, ets)).toBe(QUESTION_A);
+  });
+
+  it('completing the remaining correct answers then reveals the explanation', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    expect(live(partial(2, [RIGHT]), ets)).toBe(QUESTION_A);
+    expect(live(partial(1, [RIGHT, OTHER_RIGHT]), ets)).toBe(QUESTION_A);
+    expect(live(partial(0, [RIGHT, OTHER_RIGHT]), ets)).toBe(COMPOSED_A);
+  });
+
+  it('an authoritative expiry reveals it (the accepted timeout behavior)', () => {
+    const ets = newStores();
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    expect(live({ phase: 'expired', type: QuestionType.MultipleAnswer, raw: RAW_A }, ets)).toBe(COMPOSED_A);
+  });
+});
+
+describe('after a full page load (typed URL → Previous) the composed text is rebuilt from the verdict and the DISPLAYED options', () => {
+  // The formatter the live reveal uses names correct options by their position in the options it is handed. This stand-in keeps
+  // that contract (positions in the given order) so the tests can see which order the heading code passed.
+  const formatter = () => {
+    const calls: { options: string[]; indices: number[] }[] = [];
+    return {
+      calls,
+      formatExplanation: (q: any, indices: number[], raw: string) => {
+        calls.push({ options: q.options.map((o: any) => o.text), indices });
+        const lead = raw.charAt(0).toLowerCase() + raw.slice(1);
+        return indices.length > 1
+          ? `Options ${indices.slice(0, -1).join(', ')}, and ${indices[indices.length - 1]} are correct because ${lead}`
+          : `Option ${indices[0]} is correct because ${lead}`;
+      }
+    };
+  };
+  const fullLoad = () => ({ ...newStores() }); // nothing composed survives: no primary store, no memo
+
+  it('single answer: restores "Option N is correct because …" with N from the displayed order', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    const text = heading(
+      { ...correctSingle, correctTexts: ['gamma'], options: ['alpha', 'beta', 'gamma', 'delta'], revisit: true, raw: 'It keeps the view in sync' },
+      ets
+    );
+    expect(text).toBe('Option 3 is correct because it keeps the view in sync.');
+    expect(f.calls[0].indices).toEqual([3]);
+  });
+
+  it('never reuses numbering from a different order: the same question shuffled gets its own numbers', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    const base: Over = { ...correctSingle, correctTexts: ['gamma'], revisit: true, raw: 'It keeps the view in sync' };
+    expect(heading({ ...base, options: ['alpha', 'beta', 'gamma', 'delta'] }, ets)).toContain('Option 3 is correct');
+    expect(heading({ ...base, options: ['gamma', 'delta', 'alpha', 'beta'] }, ets)).toContain('Option 1 is correct');
+    expect(f.calls.map((c) => c.options[0])).toEqual(['alpha', 'gamma']);
+  });
+
+  it('multiple answer: restores "Options 1, 3, and 4 are correct because …" for the displayed order', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    const text = heading(
+      {
+        type: QuestionType.MultipleAnswer,
+        selected: ['alpha', 'gamma', 'delta'],
+        phase: 'resolved',
+        resolvedCorrect: true,
+        verdicts: [['alpha', true], ['gamma', true], ['delta', true]],
+        correctTexts: ['alpha', 'gamma', 'delta'],
+        raw: 'DI hands a class its dependencies',
+        revisit: true
+      },
+      ets
+    );
+    expect(text).toBe('Options 1, 3, and 4 are correct because dI hands a class its dependencies.');
+  });
+
+  it('an expired (server-confirmed) question is rebuilt the same way', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    const text = heading({ phase: 'expired', correctTexts: ['beta'], raw: 'It is beta', revisit: true }, ets);
+    expect(text).toBe('Option 2 is correct because it is beta.');
+  });
+
+  it('the remembered/primary composed text still wins when it exists (no recomposition)', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    ets.formattedExplanations[0] = { explanation: COMPOSED_A };
+    expect(heading({ ...correctSingle, correctTexts: ['alpha'], revisit: true }, ets)).toBe(COMPOSED_A);
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it('falls back to the raw explanation when no displayed option matches the authorized correct texts', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    expect(heading({ ...correctSingle, correctTexts: ['not shown'], revisit: true }, ets)).toBe('it keeps the view in sync.');
+  });
+
+  it('wrong, partial and unanswered questions still show the question text (nothing is rebuilt for them)', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    const wrong: Over = { selected: [WRONG], phase: 'resolved', resolvedCorrect: false, verdicts: [[WRONG.toLowerCase(), false]], raw: RAW_A, correctTexts: ['alpha'], revisit: true };
+    const partial: Over = { type: QuestionType.MultipleAnswer, selected: ['alpha'], phase: 'incomplete', remaining: 1, verdicts: [['alpha', true]], correctTexts: ['alpha', 'gamma'], raw: RAW_A, revisit: true };
+    expect(heading(wrong, ets)).toBe(QUESTION_A);
+    expect(heading(partial, ets)).toBe(QUESTION_A);
+    expect(heading({ revisit: true }, ets)).toBe(QUESTION_A);
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it('direct entry still shows the question text first, even though the explanation could be rebuilt', () => {
+    const f = formatter();
+    const ets = { ...fullLoad(), formatExplanation: f.formatExplanation };
+    expect(heading({ ...correctSingle, correctTexts: ['alpha'], directEntry: true }, ets)).toBe(QUESTION_A);
   });
 });
 

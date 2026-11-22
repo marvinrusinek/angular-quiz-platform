@@ -1,14 +1,17 @@
 import { test, expect, Page } from '@playwright/test';
 
-import { HEADING, NEXT_BTN, quizData, correctIndicesForHeading } from './helpers';
+import { HEADING, NEXT_BTN, PREV_BTN, RESULTS_BTN, quizData, correctIndicesForHeading } from './helpers';
 
 /**
- * DIRECT-ROUTE PROGRESSION BYPASS — closed by QuizGuard + QuizProgressionService.
+ * DIRECT URL ENTRY — any valid question index may be opened directly.
  *
- * Before this fix, `QuizGuard` validated only that a requested question index
- * was IN RANGE (1..N), never whether the current attempt had actually earned
- * it — so typing, pasting, or replaying a future question's URL skipped
- * straight to it, no matter how far the user had really progressed.
+ * `QuizGuard` validates only that the requested index is IN RANGE (1..N) (malformed and out-of-range indexes still
+ * redirect). It no longer redirects an unreached question to the furthest unlocked one: opening a question only DISPLAYS it
+ * (its own text, nothing selected, nothing marked answered or completed, no score or verdict change). What leaving a question
+ * (Next) and finishing the quiz (Results) require is unchanged and is decided by verdicts and expiry, not by the URL.
+ *
+ * NOTE: these expectations were rewritten for that behavior and have NOT been executed: Playwright is blocked in this
+ * environment.
  *
  * These specs drive the real app end-to-end (real backend, real router,
  * real sessionStorage) and assert on the actual resulting URL/heading, never
@@ -49,6 +52,23 @@ async function gotoQuestionDirect(page: Page, quizId: string, index: number): Pr
   await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
 }
 
+/** Question N's own text: the lower-cased start of its stem, which only the question text (not an explanation) contains. */
+function stemOf(quiz: any, n: number): string {
+  return quiz.questions[n - 1].questionText.split('?')[0].slice(0, 15).toLowerCase();
+}
+async function headingText(page: Page): Promise<string> {
+  return ((await page.locator(HEADING).first().textContent()) ?? '').toLowerCase();
+}
+async function expectQuestionText(page: Page, quiz: any, n: number): Promise<void> {
+  expect(await headingText(page), "the heading shows question " + n + "'s own text").toContain(stemOf(quiz, n));
+}
+/** The heading no longer shows question N's text: its explanation has taken its place (reveal or restored revisit). */
+async function expectExplanationShown(page: Page, quiz: any, n: number, timeout = 15_000): Promise<void> {
+  await expect
+    .poll(async () => (await headingText(page)).includes(stemOf(quiz, n)), { timeout })
+    .toBe(false);
+}
+
 /** Start a quiz the way a user does: tile → intro → "Start the Quiz!". */
 async function startViaUi(page: Page, needle: RegExp): Promise<void> {
   await page.goto('/quiz');
@@ -80,12 +100,23 @@ async function answerCorrectlyAndAdvance(page: Page, quiz: any): Promise<void> {
 }
 
 test.describe('Direct-route progression bypass — fresh direct URL', () => {
-  test('a brand-new attempt: typing a future question URL redirects to question 1, and question 1 is what actually renders', async ({ page }) => {
+  test('a brand-new attempt: typing a future question URL opens THAT question, with its own text and nothing selected or marked', async ({ page }) => {
     await gotoQuestionDirect(page, 'fixture-widgets', 5);
 
-    expect(questionIndexFromUrl(page), 'redirected back to question 1').toBe(1);
-    const heading = (await page.locator(HEADING).first().textContent()) ?? '';
-    expect(heading.toLowerCase()).toContain(widgetsQuiz.questions[0].questionText.split('?')[0].slice(0, 15).toLowerCase());
+    expect(questionIndexFromUrl(page), 'no redirect: the requested question opens').toBe(5);
+    await expectQuestionText(page, widgetsQuiz, 5);
+    await expect(page.locator(ROW + '.selected-option')).toHaveCount(0);
+    await expect(page.locator(ROW + '.correct-option')).toHaveCount(0);
+    await expect(page.locator(NEXT_BTN)).toBeDisabled();
+  });
+
+  test('an invalid index is still validated: out of range goes to the last question, malformed goes to the intro', async ({ page }) => {
+    await page.goto('/quiz/question/fixture-widgets/' + (widgetsQuiz.questions.length + 5));
+    await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
+    expect(questionIndexFromUrl(page)).toBe(widgetsQuiz.questions.length);
+
+    await page.goto('/quiz/question/fixture-widgets/abc');
+    await page.waitForURL(/\/quiz\/intro\/fixture-widgets/, { timeout: 15_000 });
   });
 
   test('a brand-new attempt: question 1 itself is allowed directly, with no redirect', async ({ page }) => {
@@ -95,17 +126,18 @@ test.describe('Direct-route progression bypass — fresh direct URL', () => {
 });
 
 test.describe('Direct-route progression bypass — progressive unlock', () => {
-  test('completing question 1 unlocks exactly question 2 — question 3 stays locked', async ({ page }) => {
+  test('completing question 1 does not restrict the URL: question 3 opens directly with its own text', async ({ page }) => {
     await startViaUi(page, /fixture widgets/i);
     await answerCorrectlyAndAdvance(page, widgetsQuiz);
     expect(questionIndexFromUrl(page), 'Next legitimately landed on question 2').toBe(2);
 
     const quizId = quizIdFromUrl(page);
     await gotoQuestionDirect(page, quizId, 3);
-    expect(questionIndexFromUrl(page), 'question 3 is not yet earned — redirected to the furthest unlocked (2)').toBe(2);
+    expect(questionIndexFromUrl(page), 'question 3 opens directly').toBe(3);
+    await expectQuestionText(page, widgetsQuiz, 3);
   });
 
-  test('completing question 2 pushes the furthest-unlocked marker to 3', async ({ page }) => {
+  test('after completing question 2, every question is directly reachable, ahead or behind', async ({ page }) => {
     await startViaUi(page, /fixture widgets/i);
     await answerCorrectlyAndAdvance(page, widgetsQuiz); // -> q2
     await answerCorrectlyAndAdvance(page, widgetsQuiz); // -> q3
@@ -113,10 +145,8 @@ test.describe('Direct-route progression bypass — progressive unlock', () => {
 
     const quizId = quizIdFromUrl(page);
     await gotoQuestionDirect(page, quizId, 4);
-    expect(questionIndexFromUrl(page), 'question 4 still not earned — redirected to 3').toBe(3);
+    expect(questionIndexFromUrl(page), 'question 4 opens directly').toBe(4);
 
-    // The now-unlocked question 3 itself, and every question behind it, are
-    // both directly reachable — the gate only ever blocks what is AHEAD.
     await gotoQuestionDirect(page, quizId, 3);
     expect(questionIndexFromUrl(page)).toBe(3);
     await gotoQuestionDirect(page, quizId, 1);
@@ -135,7 +165,7 @@ test.describe('Direct-route progression bypass — refresh and history', () => {
     expect(questionIndexFromUrl(page), 'refresh did not relock the furthest question').toBe(2);
   });
 
-  test('after a refresh, the marker still blocks a not-yet-earned question ahead of it', async ({ page }) => {
+  test('after a refresh, a question ahead still opens directly', async ({ page }) => {
     await startViaUi(page, /fixture widgets/i);
     await answerCorrectlyAndAdvance(page, widgetsQuiz); // -> q2
     await page.reload();
@@ -143,7 +173,8 @@ test.describe('Direct-route progression bypass — refresh and history', () => {
 
     const quizId = quizIdFromUrl(page);
     await gotoQuestionDirect(page, quizId, 6);
-    expect(questionIndexFromUrl(page), 'still redirected to the furthest unlocked (2), not the requested 6').toBe(2);
+    expect(questionIndexFromUrl(page), 'the requested question 6 opens').toBe(6);
+    await expectQuestionText(page, widgetsQuiz, 6);
   });
 
   test('browser Back to an already-visited earlier question is never redirected', async ({ page }) => {
@@ -159,7 +190,7 @@ test.describe('Direct-route progression bypass — refresh and history', () => {
 });
 
 test.describe('Direct-route progression bypass — restart isolation', () => {
-  test('confirming Restart relocks every question past 1 — a direct request for the old furthest question redirects to 1', async ({ page }) => {
+  test('confirming Restart starts a clean attempt: a direct request for question 3 opens it as an unanswered question', async ({ page }) => {
     await startViaUi(page, /fixture widgets/i);
     await answerCorrectlyAndAdvance(page, widgetsQuiz); // -> q2
     await answerCorrectlyAndAdvance(page, widgetsQuiz); // -> q3
@@ -179,10 +210,12 @@ test.describe('Direct-route progression bypass — restart isolation', () => {
     expect(questionIndexFromUrl(page), 'Restart itself lands back on question 1').toBe(1);
 
     await gotoQuestionDirect(page, quizId, 3);
-    expect(questionIndexFromUrl(page), 'the pre-restart unlock (question 3) no longer applies — relocked to 1').toBe(1);
+    expect(questionIndexFromUrl(page), 'question 3 opens directly after the restart').toBe(3);
+    await expectQuestionText(page, widgetsQuiz, 3); // the pre-restart answer is gone: question text, nothing selected
+    await expect(page.locator(ROW + '.selected-option')).toHaveCount(0);
   });
 
-  test('cancelling the Restart dialog leaves the furthest-unlocked marker intact', async ({ page }) => {
+  test('cancelling the Restart dialog leaves the attempt intact', async ({ page }) => {
     await startViaUi(page, /fixture widgets/i);
     await answerCorrectlyAndAdvance(page, widgetsQuiz); // -> q2
     expect(questionIndexFromUrl(page)).toBe(2);
@@ -210,7 +243,7 @@ test.describe('Direct-route progression bypass — quiz isolation', () => {
     // Leave via the header logo (an in-SPA route change, not a full reload —
     // a `page.goto` here would tear down state the real user flow never
     // touches and prove nothing about the actual regression).
-    const backLink = page.locator('mat-card-header a[href="/select"]').first();
+    const backLink = page.locator('mat-card-header button.quiz-header__logo').first();
     await backLink.waitFor({ state: 'visible', timeout: 15_000 });
     await backLink.click();
     await page.locator(TILE).first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -218,10 +251,59 @@ test.describe('Direct-route progression bypass — quiz isolation', () => {
     await startViaUi(page, /fixture gadgets/i);
     expect(questionIndexFromUrl(page), 'the new quiz starts on its own question 1').toBe(1);
 
-    // A brand-new attempt was minted for the new quiz — the old quiz's
-    // furthest-unlocked record (bound to its own quizId+attemptId) cannot
-    // authorize anything here.
+    // A brand-new attempt was minted for the new quiz: the old quiz's answers carry nothing over, and question 3 opens
+    // directly as an unanswered question.
     await gotoQuestionDirect(page, 'fixture-gadgets', 3);
-    expect(questionIndexFromUrl(page), 'the new quiz has earned nothing yet — redirected to 1').toBe(1);
+    expect(questionIndexFromUrl(page), 'question 3 opens directly in the new quiz').toBe(3);
+    await expect(page.locator(ROW + '.selected-option')).toHaveCount(0);
+  });
+});
+
+test.describe('Directly opened question — revisit restoration and Results eligibility', () => {
+  test('fully correct answer on a directly opened question → Next → Previous restores its explanation and selection', async ({ page }) => {
+    await startViaUi(page, /fixture widgets/i);
+    await gotoQuestionDirect(page, 'fixture-widgets', 3);
+    expect(questionIndexFromUrl(page)).toBe(3);
+    await expectQuestionText(page, widgetsQuiz, 3); // direct entry shows the question text first
+
+    const heading = (await page.locator(HEADING).first().textContent()) ?? '';
+    const pick = correctIndicesForHeading(widgetsQuiz, heading)[0] ?? 0;
+    await page.locator(ROW).nth(pick).click({ timeout: 5000 });
+    await expect(page.locator(ROW).nth(pick)).toHaveClass(/correct-option/, { timeout: 15_000 });
+
+    await page.locator(NEXT_BTN).first().click({ timeout: 5000 });
+    await page.waitForURL(/\/4$/, { timeout: 15_000 });
+    await page.locator(PREV_BTN).first().click({ timeout: 5000 });
+    await page.waitForURL(/\/3$/, { timeout: 15_000 });
+    await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
+
+    await expectExplanationShown(page, widgetsQuiz, 3); // the explanation is restored on the revisit
+    await expect(page.locator(ROW).nth(pick), 'the selection is restored').toHaveClass(/correct-option/);
+  });
+
+  test('server-confirmed timeout on a directly opened question → Next → Previous restores its explanation, and the next question stays selectable until its own expiry', async ({ page }) => {
+    test.setTimeout(300_000);
+    await startViaUi(page, /fixture widgets/i);
+    await gotoQuestionDirect(page, 'fixture-widgets', 3);
+    await expectQuestionText(page, widgetsQuiz, 3);
+
+    // Let question 3's own deadline pass with no answer: the server-confirmed reveal replaces the text.
+    await expectExplanationShown(page, widgetsQuiz, 3, 90_000);
+
+    await page.locator(NEXT_BTN).first().click({ timeout: 5000 });
+    await page.waitForURL(/\/4$/, { timeout: 15_000 });
+    await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
+    await expectQuestionText(page, widgetsQuiz, 4); // the next question starts with its own text and its own deadline
+
+    // ...and it is selectable: the previous question's expiry did not lock it.
+    const next = (await page.locator(HEADING).first().textContent()) ?? '';
+    const pick = correctIndicesForHeading(widgetsQuiz, next)[0] ?? 0;
+    await page.locator(ROW).nth(pick).click({ timeout: 5000 });
+    await expect(page.locator(ROW).nth(pick)).toHaveClass(/correct-option/, { timeout: 15_000 });
+
+    await page.locator(PREV_BTN).first().click({ timeout: 5000 });
+    await page.waitForURL(/\/3$/, { timeout: 15_000 });
+    await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
+    await expectExplanationShown(page, widgetsQuiz, 3); // the expired question restores its explanation
   });
 });

@@ -11,7 +11,6 @@ import { map } from 'rxjs/operators';
 
 import { TopicQuizMetadataService } from '@shared/services/api/topic-quiz-metadata.service';
 import { QuizService } from '@shared/services/data/quiz.service';
-import { QuizProgressionService } from '@shared/services/flow/quiz-progression.service';
 
 /**
  * S6h: index validation only, from the same API-backed metadata source the
@@ -25,19 +24,18 @@ import { QuizProgressionService } from '@shared/services/flow/quiz-progression.s
  * (`true`) exactly as an uncached quiz used to be — the resolver redirects
  * unknown quizzes on its own (see quiz-resolver.service.ts, S6f).
  *
- * PROGRESSION validation is the second, independent check added here: even
- * an in-range index can be a direct-route bypass (typed, pasted, or replayed
- * from history) of a question the current attempt has not legitimately
- * reached yet. `QuizProgressionService` is the one source of truth for how
- * far the attempt has gotten; see its own doc comment for why a verdict alone
- * cannot answer that. Both checks are synchronous (sessionStorage-backed), so
- * this adds no latency and no new async dependency.
+ * DIRECT ENTRY: any valid (in-range) question index may be opened directly by URL (typed,
+ * pasted, bookmarked or replayed from history), whatever the attempt has answered so far.
+ * Opening a question only DISPLAYS it: it records nothing as answered or completed, starts
+ * no new deadline for an already-started question, and changes no score or verdict. What
+ * a question's answer, the Next button and Results eligibility require is decided
+ * elsewhere (verdicts and the backend), not by which URL was requested. Only range
+ * validation remains here; `QuizProgressionService` is no longer consulted for routing.
  */
 @Service()
 export class QuizGuard implements CanActivate {
   private readonly metadataApi = inject(TopicQuizMetadataService);
   private readonly quizService = inject(QuizService);
-  private readonly progressionService = inject(QuizProgressionService);
   private readonly router = inject(Router);
 
   canActivate(
@@ -98,16 +96,7 @@ export class QuizGuard implements CanActivate {
       return this.router.createUrlTree(['/quiz/intro', quizId]);
     }
 
-    // IN RANGE is not the same as LEGITIMATELY REACHED. A locked future
-    // question redirects to the furthest one this attempt has actually
-    // earned — never rendered, even briefly, before the redirect (returning
-    // a UrlTree here, rather than navigating imperatively, means the router
-    // never activates this route at all).
-    const furthest = this.progressionService.getFurthestUnlocked(quizId, total);
-    if (questionIndex > furthest) {
-      return this.router.createUrlTree(['/quiz/question', quizId, furthest]);
-    }
-
+    // In range: open exactly the requested question (direct entry to any valid index).
     return true;
   }
 }

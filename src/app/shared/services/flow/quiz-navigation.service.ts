@@ -5,6 +5,7 @@ import { firstValueFrom, Observable, of, Subject } from 'rxjs';
 import { catchError, take } from 'rxjs/operators';
 
 import { Option, QuestionType, QuizQuestion } from '@shared/models';
+import { directEntryIndexFromNavigation, loadedDocumentUrl } from '@shared/utils/direct-entry';
 
 import { ExplanationTextService } from '@shared/services/features/explanation/explanation-text.service';
 import { NextButtonStateService } from '@shared/services/state/next-button-state.service';
@@ -50,6 +51,21 @@ export class QuizNavigationService {
   /** Signal-first source of truth for backward-navigation state */
   readonly isNavigatingToPreviousSig = signal<boolean>(false);
   private readonly isNavigatingToPrevious$ = toObservable(this.isNavigatingToPreviousSig);
+
+  /**
+   * The question (0-based index) the browser landed on by DIRECT URL ENTRY — the app's first navigation was
+   * /quiz/question/:quizId/:index (typed, bookmarked or reloaded) — until the user moves to another question in the app.
+   * While it names the question on screen the heading shows that question's TEXT, never a restored explanation; it does
+   * not alter selections, verdicts, deadlines, option locks or any navigation guard. null for in-app arrivals.
+   */
+  readonly directEntryIndexSig = signal<number | null>(
+    directEntryIndexFromNavigation(this.router.getCurrentNavigation?.(), loadedDocumentUrl())
+  );
+
+  /** Leaving the direct-entry question (any in-app navigation) ends the direct-entry state. */
+  clearDirectEntry(): void {
+    if (this.directEntryIndexSig() !== null) this.directEntryIndexSig.set(null);
+  }
 
   // ── properties ──────────────────────────────────────────────────
   private quizId = '';
@@ -105,6 +121,7 @@ export class QuizNavigationService {
   public async advanceToPreviousQuestion(): Promise<boolean> {
     // Signal backward navigation so display pipeline suppresses FET
     this.isNavigatingToPreviousSig.set(true);
+    this.clearDirectEntry();
 
     try {
       // Do not wipe everything; only clear transient display flags if necessary
@@ -154,6 +171,7 @@ export class QuizNavigationService {
       // text instead of the FET. Setting it here for EVERY navigation is what
       // makes dots and Next behave like ArrowLeft/Previous.
       this.isNavigatingToPreviousSig.set(true);
+      this.clearDirectEntry();
       (this as any).displayExplanation = false;
       (this as any).explanationToDisplay = '';
       this.explanationTextService.setShouldDisplayExplanation(false);
@@ -530,6 +548,7 @@ export class QuizNavigationService {
       // other revisit) without forcing its reveal back open the instant the
       // question is merely landed on again.
       this.isNavigatingToPreviousSig.set(true);
+      this.clearDirectEntry();
       this.quizStateService.clearInteractedThisVisit(index);
 
       // Fresh start guard: entering Q1 from intro/start should never reuse stale

@@ -221,12 +221,37 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
   if (rememberable && rememberSource.trim().length > 0) {
     ets.answeredFetByQuestion?.set?.(answeredKey, rememberSource);
   }
+  // After a full page load (a typed URL, a reload) the in-memory composed text is gone, and only the verdict's RAW explanation
+  // survives (the earned verdict is restored from storage). The words are recomposed through the SAME formatter the live
+  // reveal uses, from the verdict's authorized correct option texts and the DISPLAYED options: the "Option N" numbers come
+  // from this question's displayed order, never from any other order or from a remembered string.
+  const composeFromVerdict = (): string => {
+    const raw = authorizedExplanation.trim();
+    const shown = (dq.options ?? []) as any[];
+    const correct = new Set((verdict?.correctOptionTexts ?? []).map((x) => norm(x)));
+    if (!raw || shown.length === 0 || correct.size === 0) return '';
+    const indices: number[] = [];
+    shown.forEach((o, i) => {
+      if (correct.has(norm(o?.text))) indices.push(i + 1);
+    });
+    if (indices.length === 0) return '';
+    try {
+      // The formatter may set `type` on the question it is given: hand it a copy, in the displayed option order.
+      const composed = ets.formatExplanation?.({ ...dq, options: shown }, indices, raw, idx);
+      return typeof composed === 'string' ? composed : '';
+    } catch {
+      return '';
+    }
+  };
+
   const _fetHtml = withTerminalPeriod(
     primaryFet ||
       (rememberable ? (ets.answeredFetByQuestion?.get?.(answeredKey) ?? '') : '') || // durable (purge-proof)
       // The index-keyed timeout store is not consulted on a revisit: after a restart or reshuffle the same index can be a
       // different question.
       (isRevisit ? '' : (ets.timeoutFetByIndex?.get?.(idx) ?? '')) || // durable timeout FET (purge-proof)
+      // Reconstructed through the formatter when nothing composed survived (a full page load), only for an authorized reveal.
+      (rememberable ? composeFromVerdict() : '') ||
       // Last resort: the verdict's own raw explanation, so an authorized reveal
       // is never silently blank when the formatter has not run.
       authorizedExplanation
@@ -274,6 +299,7 @@ export function buildHeadingInputs(d: HeadingInputDeps): HeadingInputs | null {
     deferFeedback: d.feedbackPolicyService?.feedbackMode?.() === 'deferred',
     verdictEarnedReveal,
     verdictAnsweredCorrectly,
-    verdictExpired
+    verdictExpired,
+    directEntry: d.quizNavigationService.directEntryIndexSig?.() === idx
   };
 }

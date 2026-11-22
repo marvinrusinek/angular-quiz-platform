@@ -291,6 +291,29 @@ describe('heading-model: genuine timeout uses the ordinary FET presentation, not
  * `heading-inputs-fet-eligibility.spec.ts`, which is where the "wrong answer
  * revealed the FET" regression actually lived.
  */
+describe('heading-model: direct URL entry shows the question text first', () => {
+  it('suppresses the explanation even for an earned, answered-correctly or expired verdict', () => {
+    expect(shouldShowFet(inputs({ directEntry: true, verdictEarnedReveal: true }))).toBe(false);
+    expect(shouldShowFet(inputs({ directEntry: true, verdictEarnedReveal: true, verdictAnsweredCorrectly: true }))).toBe(false);
+    expect(shouldShowFet(inputs({ directEntry: true, verdictEarnedReveal: true, verdictExpired: true }))).toBe(false);
+  });
+
+  it('yields to a genuine interaction or a live timeout during this visit', () => {
+    expect(shouldShowFet(inputs({ directEntry: true, interactedThisVisit: true, hasInteracted: true, isSingleAnswered: true }))).toBe(true);
+    expect(shouldShowFet(inputs({ directEntry: true, isTimedOut: true }))).toBe(true);
+  });
+
+  it('does nothing when it is not a direct entry (absent behaves as false)', () => {
+    expect(shouldShowFet(inputs({ verdictEarnedReveal: true }))).toBe(true);
+    expect(shouldShowFet(inputs({ directEntry: false, verdictEarnedReveal: true }))).toBe(true);
+  });
+
+  it('Interview Mode and cold load still win', () => {
+    expect(shouldShowFet(inputs({ directEntry: false, verdictEarnedReveal: true, deferFeedback: true }))).toBe(false);
+    expect(shouldShowFet(inputs({ directEntry: false, verdictEarnedReveal: true, optionsReady: false }))).toBe(false);
+  });
+});
+
 describe('heading-model: verdictEarnedReveal restores the FET across a reload', () => {
   it('cold reload, no live interaction, but a rehydrated earned verdict → FET restores', () => {
     expect(shouldShowFet(inputs({ verdictEarnedReveal: true }))).toBe(true);

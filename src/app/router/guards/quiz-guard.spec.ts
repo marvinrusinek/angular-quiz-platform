@@ -13,11 +13,9 @@ import { QuizProgressionService } from '@shared/services/flow/quiz-progression.s
  * validation now comes from TopicQuizMetadataService.questionCountByQuiz(),
  * the same API-backed metadata source the resolver already uses.
  *
- * `progressionService` defaults to "everything unlocked" (MAX_SAFE_INTEGER)
- * so every pre-existing test below keeps testing exactly what it always
- * tested — pure range validation — undisturbed by the progression check. The
- * dedicated `describe('progression gate — direct-route bypass')` block below
- * overrides it to specific values to test THAT check in isolation.
+ * The guard validates the index only (any valid index may be opened directly); the
+ * `progressionService` stub exists to prove routing no longer consults it. The
+ * `describe('direct entry to any valid question index')` block covers that.
  */
 describe('QuizGuard', () => {
   let guard: QuizGuard;
@@ -48,7 +46,8 @@ describe('QuizGuard', () => {
     quizService = { questions: [] };
 
     progressionService = {
-      getFurthestUnlocked: jest.fn().mockReturnValue(Number.MAX_SAFE_INTEGER)
+      getFurthestUnlocked: jest.fn().mockReturnValue(Number.MAX_SAFE_INTEGER),
+      unlockThrough: jest.fn()
     };
 
     TestBed.configureTestingModule({
@@ -228,170 +227,42 @@ describe('QuizGuard', () => {
     });
   });
 
-  describe('progression gate — direct-route bypass', () => {
-    it('a brand-new attempt (furthest=1) allows question 1', (done) => {
-      setCounts({ angular: 3 });
-      progressionService.getFurthestUnlocked.mockReturnValue(1);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '1' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        expect(result).toBe(true);
-        expect(router.createUrlTree).not.toHaveBeenCalled();
-        done();
-      });
-    });
+  describe('direct entry to any valid question index', () => {
+    const open = (quizId: string, questionIndex: string): Promise<unknown> =>
+      new Promise((resolve) =>
+        (guard.canActivate(makeRoute({ quizId, questionIndex }), mockRouterState) as any).subscribe(resolve)
+      );
 
-    it('a brand-new attempt (furthest=1) rejects a direct request for question 2 — redirects to the furthest UrlTree, never true', (done) => {
-      setCounts({ angular: 3 });
-      progressionService.getFurthestUnlocked.mockReturnValue(1);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '2' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        expect(router.createUrlTree).toHaveBeenCalledWith(['/quiz/question', 'angular', 1]);
-        expect(result).toBeInstanceOf(UrlTree);
-        expect(result).not.toBe(true);
-        done();
-      });
-    });
-
-    it('an in-range but not-yet-earned question (e.g. furthest=2, requesting 5 of 6) redirects to the furthest unlocked index, not the requested one', (done) => {
+    it('a brand-new attempt (nothing answered) may open question 3 directly, and 5 of 6', async () => {
       setCounts({ angular: 6 });
-      progressionService.getFurthestUnlocked.mockReturnValue(2);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '5' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        expect(router.createUrlTree).toHaveBeenCalledWith(['/quiz/question', 'angular', 2]);
-        expect(result).toBeInstanceOf(UrlTree);
-        done();
-      });
+      progressionService.getFurthestUnlocked.mockReturnValue(1); // the old progression marker would have said "only 1"
+      expect(await open('angular', '3')).toBe(true);
+      expect(await open('angular', '5')).toBe(true);
     });
 
-    it.each(['4', '5'])('a dot jump to question %s (recorded as reached, furthest=5) is accepted - never clamped to the next unlocked question', (q, done?: any) => {
-      setCounts({ angular: 6 });
-      progressionService.getFurthestUnlocked.mockReturnValue(5);
-      (
-        guard.canActivate(makeRoute({ quizId: 'angular', questionIndex: q }), mockRouterState) as any
-      ).subscribe((result: unknown) => {
-        expect(result).toBe(true);
-        expect(router.createUrlTree).not.toHaveBeenCalled();
-        done();
-      });
-    });
-
-    it('a question beyond the jump target (furthest=5, requesting 6) is still redirected, and out-of-bounds still redirects to the last question', (done) => {
-      setCounts({ angular: 6 });
-      progressionService.getFurthestUnlocked.mockReturnValue(5);
-      (
-        guard.canActivate(makeRoute({ quizId: 'angular', questionIndex: '6' }), mockRouterState) as any
-      ).subscribe(() => {
-        expect(router.createUrlTree).toHaveBeenCalledWith(['/quiz/question', 'angular', 5]);
-        (
-          guard.canActivate(makeRoute({ quizId: 'angular', questionIndex: '9' }), mockRouterState) as any
-        ).subscribe(() => {
-          expect(router.createUrlTree).toHaveBeenCalledWith(['/quiz/question', 'angular', 6]);
-          done();
-        });
-      });
-    });
-
-    it('requesting exactly the furthest-unlocked index is allowed (the boundary is inclusive)', (done) => {
-      setCounts({ angular: 6 });
+    it('jumping from /3 to /5 is allowed regardless of earlier answers', async () => {
+      setCounts({ angular: 7 });
       progressionService.getFurthestUnlocked.mockReturnValue(3);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '3' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        expect(result).toBe(true);
-        done();
-      });
+      expect(await open('angular', '3')).toBe(true);
+      expect(await open('angular', '5')).toBe(true);
+      expect(await open('angular', '7')).toBe(true);
     });
 
-    it('requesting any already-unlocked question behind the furthest (revisit/backward nav) is allowed', (done) => {
+    it('routing no longer consults the progression marker (no recording, no reading)', async () => {
       setCounts({ angular: 6 });
-      progressionService.getFurthestUnlocked.mockReturnValue(4);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '2' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        expect(result).toBe(true);
-        done();
-      });
+      await open('angular', '5');
+      expect(progressionService.getFurthestUnlocked).not.toHaveBeenCalled();
+      expect(progressionService.unlockThrough).not.toHaveBeenCalled();
     });
 
-    it('malformed/out-of-range index handling runs BEFORE the progression check — a non-numeric index still redirects to intro, not through getFurthestUnlocked', (done) => {
-      setCounts({ angular: 3 });
-      progressionService.getFurthestUnlocked.mockReturnValue(1);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: 'nope' }),
-          mockRouterState
-        ) as any
-      ).subscribe(() => {
-        expect(router.createUrlTree).toHaveBeenCalledWith(['/quiz/intro', 'angular']);
-        expect(progressionService.getFurthestUnlocked).not.toHaveBeenCalled();
-        done();
-      });
-    });
-
-    it('the progression check is consulted with the resolved quizId and the best-known total question count', (done) => {
-      setCounts({ angular: 3 });
-      quizService.questions = [{}, {}, {}, {}]; // live count (4) exceeds metadata (3)
-      progressionService.getFurthestUnlocked.mockReturnValue(1);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '4' }),
-          mockRouterState
-        ) as any
-      ).subscribe(() => {
-        expect(progressionService.getFurthestUnlocked).toHaveBeenCalledWith('angular', 4);
-        done();
-      });
-    });
-
-    it('a direct Router.navigate() to a locked URL cannot bypass the guard — canActivate itself resolves a redirect UrlTree, not `true`, so the target route never activates', (done) => {
+    it('index validation is kept: out-of-range still redirects, malformed still goes to intro, < 1 to question 1', async () => {
       setCounts({ angular: 6 });
-      progressionService.getFurthestUnlocked.mockReturnValue(1);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '6' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        expect(result).toBeInstanceOf(UrlTree);
-        expect(result).not.toBe(true);
-        expect(router.createUrlTree).toHaveBeenCalledWith(['/quiz/question', 'angular', 1]);
-        done();
-      });
-    });
-
-    it('redirecting to the furthest unlocked index cannot loop — re-evaluating the guard against that same redirect target resolves true', (done) => {
-      setCounts({ angular: 6 });
-      progressionService.getFurthestUnlocked.mockReturnValue(2);
-      (
-        guard.canActivate(
-          makeRoute({ quizId: 'angular', questionIndex: '2' }),
-          mockRouterState
-        ) as any
-      ).subscribe((result: unknown) => {
-        // This is the exact target the prior over-request redirected to —
-        // proving re-evaluating the guard against it settles at `true`
-        // instead of redirecting again.
-        expect(result).toBe(true);
-        done();
-      });
+      await open('angular', '99');
+      expect(router.createUrlTree).toHaveBeenLastCalledWith(['/quiz/question', 'angular', 6]);
+      await open('angular', 'abc');
+      expect(router.createUrlTree).toHaveBeenLastCalledWith(['/quiz/intro', 'angular']);
+      await open('angular', '0');
+      expect(router.createUrlTree).toHaveBeenLastCalledWith(['/quiz/question', 'angular', 1]);
     });
   });
 });

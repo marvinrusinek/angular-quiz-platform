@@ -88,6 +88,12 @@ export interface HeadingInputs {
    *  exempts it from the revisit guard too. The local timer reaching zero is never enough: only a verdict whose phase is
    *  `expired` sets this. Optional: undefined behaves as `false`. */
   verdictExpired?: boolean;
+
+  /** The browser landed on THIS question by DIRECT URL ENTRY (typed, bookmarked or reloaded) and has not left it in the app.
+   *  Existing verdicts and cached explanations must not replace the question text on arrival, so the heading shows the
+   *  question; only a genuine answer completion or a live timeout during the current visit reveals the explanation. In-app
+   *  revisits (Next / Previous / dots) are unaffected. Optional: undefined behaves as `false`. */
+  directEntry?: boolean;
 }
 
 /**
@@ -117,6 +123,11 @@ export function shouldShowFet(i: HeadingInputs): boolean {
     return false;
   }
   if (!i.optionsReady) {
+    return false;
+  }
+  // DIRECT URL ENTRY shows the question text first, whatever the stored verdict or cache says. It yields to a genuine
+  // interaction or a LIVE timeout during this visit (both are real reveals).
+  if (i.directEntry === true && !i.interactedThisVisit && !i.isTimedOut) {
     return false;
   }
   // A LIVE timeout overrides the revisit guard. `isTimedOut`

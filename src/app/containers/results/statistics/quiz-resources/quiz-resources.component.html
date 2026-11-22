@@ -19,7 +19,21 @@
                or landmark is added. -->
           <ul class="resources-rows">
             @for (resource of resources(); track resource.url) {
-              <li class="resource-item"><button type="button" class="resource-row" (click)="openResource(resource.url)"><span class="resource-visible" data-intro-visible aria-hidden="true"><strong data-intro-font-ref>{{ resource.host ? resource.title + ' — ' + resource.host : resource.title }}</strong></span><span class="resource-exposed" [appIntroExposedText]="resource.title + (resource.host ? ' ' + resource.host : '')" exposedTextMode="cover" exposedTextBox="group" exposedSingleRow></span></button></li>
+              <li class="resource-item">
+                <button type="button" class="resource-row" (click)="openResource(resource.url)">
+                  <span class="resource-visible" data-intro-visible aria-hidden="true">
+                    <strong data-intro-font-ref>
+                      {{ resource.host ? resource.title + ' — ' + resource.host : resource.title }}
+                    </strong>
+                  </span>
+                  <span class="resource-exposed"
+                    [appIntroExposedText]="resource.title + (resource.host ? ' ' + resource.host : '')"
+                    exposedTextMode="cover"
+                    exposedTextBox="group"
+                    exposedSingleRow>
+                  </span>
+                </button>
+              </li>
             }
           </ul>
         } @else {

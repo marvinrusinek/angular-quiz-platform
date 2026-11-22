@@ -84,7 +84,7 @@ import { verdictStateForDisplayIndex } from '@shared/services/features/verdict/a
 import { buildVerdictNotice, type VerdictNotice } from '@shared/utils/verdict-notice';
 import {
   blocksIntermediateProgression,
-  canSubmitFinalQuestion
+  questionBlocksResults
 } from '@shared/services/features/verdict/progression-gate';
 import { topicQuizDocumentTitle } from '@shared/utils/topic-quiz-document-title';
 import { VerdictNoticeComponent } from '../../components/verdict-notice/verdict-notice.component';
@@ -235,11 +235,10 @@ export class QuizComponent implements OnInit, AfterViewInit {
    * to leave THIS question" (here) or "Results does not require the last
    * answer to be correct" (there) an unreadable special case of the other.
    *
-   * See `blocksIntermediateProgression` for the phase-by-phase rule: only a
-   * resolved-CORRECT verdict, or a server-confirmed `expired` phase, may
-   * unblock. There is no "leave a partial multi-answer question and finish it
-   * on revisit" exception — the correctness rule wins over that prior
-   * behavior, by explicit product decision.
+   * See `blocksIntermediateProgression` for the rule: at least one option selected with a completed backend response (a
+   * resolved or incomplete verdict, correct or not), or a server-confirmed `expired` phase, unblocks. Nothing selected
+   * (including after deselecting everything), a check still in flight, or a failed check blocks. Leaving this way
+   * never marks an incorrect or partial answer correct, awards nothing and reveals no explanation.
    *
    * Timer expiry is checked FIRST, ahead of the verdict, for the same reason
    * the keyboard handler already carried its own `timerExpired` check
@@ -253,24 +252,21 @@ export class QuizComponent implements OnInit, AfterViewInit {
   readonly currentVerdictBlocksProgression = computed<boolean>(() => {
     if (this.currentQuestionTimerExpired()) return false;
     const state = this.currentVerdictState();
-    return blocksIntermediateProgression(state?.phase, state?.isResolvedCorrect ?? null);
+    return blocksIntermediateProgression(
+      state?.phase,
+      (state?.selectedOptionTexts.length ?? 0) > 0,
+      state?.isResolvedCorrect ?? null
+    );
   });
 
   /**
-   * May the FINAL question submit to Results? A SEPARATE, already-established
-   * policy from `currentVerdictBlocksProgression`: "Show Results only after at
-   * least one option has been selected" — correctness is NOT required here.
-   * A resolved-incorrect, or a completed `incomplete` (partial multi-answer)
-   * response, both allow Results as long as the user made a selection and the
-   * backend has actually responded; only `checking`/`error`/no-selection
-   * block. Scoring itself stays backend-authoritative regardless of this
-   * question's own outcome. See `canSubmitFinalQuestion`'s own doc comment for
-   * why `incomplete` counts as a completed response, not a pending one.
+   * May the FINAL question submit to Results? The SAME rule as every earlier question: a backend-verified attempt (correct, incorrect
+   * or partial) or an authoritative expired verdict. Unanswered, in-flight, failed, or a local timeout the server has not
+   * confirmed, blocks Results. Unlike Next (`currentVerdictBlocksProgression`), a local timer expiry is not enough here.
    */
   readonly finalQuestionCanSubmit = computed<boolean>(() => {
-    if (this.currentQuestionTimerExpired()) return true;
     const state = this.currentVerdictState();
-    return canSubmitFinalQuestion(state?.phase, (state?.selectedOptionTexts.length ?? 0) > 0);
+    return !questionBlocksResults(state?.phase, (state?.selectedOptionTexts.length ?? 0) > 0, state?.isResolvedCorrect ?? null);
   });
 
   /**
@@ -686,7 +682,7 @@ export class QuizComponent implements OnInit, AfterViewInit {
    * why this should be unreachable for an EARLIER question once the
    * intermediate gate is in place, and exists mainly for the acknowledged
    * direct-route bypass), and the FINAL question's own selection-based
-   * submission policy (`finalQuestionCanSubmit` — correctness NOT required).
+   * submission policy (`finalQuestionCanSubmit` — the same rule: a backend-verified attempt or an authoritative expiry).
    */
   private hasBlockingVerdicts(): boolean {
     const quizId = this.quizId() || this.quizService.quizId || undefined;
@@ -694,12 +690,27 @@ export class QuizComponent implements OnInit, AfterViewInit {
     return !this.finalQuestionCanSubmit();
   }
 
-  public get shouldShowResultsButton(): boolean {
-    // Hidden while any check is in flight or has failed, so the button never
-    // looks available for an action `advanceToResults` would then refuse. The
-    // keyboard shortcut reads this same getter, so both paths agree.
-    if (this.hasBlockingVerdicts()) return false;
+  /**
+   * RESULTS: shown AND enabled once the LAST question's own answer is backend-verified.
+   *
+   *  - VISIBLE (`shouldShowResultsButton`): this is the last question and ITS OWN answer has been backend-verified (any selected
+   *    option the backend has answered: correct, incorrect or partial) or it carries an authoritative expired verdict.
+   *  - ENABLED / allowed (`resultsButtonEnabled`, enforced again by `advanceToResults`): the same, plus the safeguards: no check
+   *    anywhere in flight or failed.
+   *
+   * Earlier questions are NOT required to be answered, however the last question was reached (typed URL, progress dot, Next).
+   * Skipped questions stay exactly what they are, unanswered: nothing is fabricated for them (no answer, no expiry, no
+   * completion, no credit), and nothing reveals an explanation for an incorrect or partial answer.
+   */
+  public get resultsButtonEnabled(): boolean {
+    return this.resultsEligible();
+  }
 
+  private resultsEligible(): boolean {
+    return !this.hasBlockingVerdicts();
+  }
+
+  public get shouldShowResultsButton(): boolean {
     const serviceCount = this.quizService.questions?.length || 0;
     const effectiveTotal = Math.max(this.totalQuestions(), serviceCount);
     const idx = this.getEffectiveQuestionIndex();
@@ -716,35 +727,10 @@ export class QuizComponent implements OnInit, AfterViewInit {
     // not depend on the rebuilt component's question payload having arrived.
     if (this.hasReachedResultsThisAttempt()) return true;
 
-    const question: QuizQuestion | null =
-      this.question() ??
-      this.quizService.questions?.[idx] ??
-      this.quizService.shuffledQuestions?.[idx] ??
-      null;
-
-    if (!question) return false;
-
-    // Authoritative in-session answered probe. We deliberately do NOT use
-    // `selectedOptionService.getSelectedOptionsForQuestion(idx)` here:
-    // selectedOptionsMap + sessionStorage SK_SEL_Q are keyed by DISPLAY
-    // index, which leaks across shuffle reshuffles — a prior shuffle's
-    // selection at display idx 5 would appear as if the new shuffle's
-    // (different) question at display 5 was already answered, surfacing
-    // Show Results on a fresh page load. isCompletedInSession is the
-    // in-session set, fresh per session and only marked when pushMessage
-    // records a real completion (NEXT_BTN / SHOW_RESULTS / Answered ✓).
-    if (this.selectionMessageService.isCompletedInSession(idx)) return true;
-
-    // Any in-session click on the last question enables Show Results.
-    // _hasUserInteracted is a fresh-per-session Set populated by the click
-    // pipeline (markUserInteracted) — shuffle-safe because it's in-memory
-    // only, NOT persisted. Lets users see results after ANY click (right
-    // or wrong) rather than requiring a fully-correct answer first.
-    if (this.quizStateService._hasUserInteracted?.has(idx)) return true;
-
-    // Also show Results when timer expired this session on the last
-    // unanswered question.
-    return this.dotStatusService.timerExpiredUnanswered.has(idx);
+    // Visible once THIS question's own answer is verified (or it is authoritatively expired). Whole-quiz eligibility is
+    // `resultsButtonEnabled`, not visibility. A pending or failed check on this question keeps it hidden (the verdict notice and
+    // its Retry take over).
+    return this.finalQuestionCanSubmit();
   }
 
   // ── Results round-trip marker ───────────────────────────────────
@@ -911,9 +897,8 @@ export class QuizComponent implements OnInit, AfterViewInit {
     //
     // Scoring must not run while a check is in flight or has failed: the result
     // would either come from a superseded verdict or from the local answer key.
-    // The UI gate below (`shouldShowResultsButton`) hides the button in the
-    // same states, so this is a backstop rather than the primary UX.
-    if (this.hasBlockingVerdicts()) return;
+    // The button is DISABLED in the same states (`resultsButtonEnabled`), so this is a backstop rather than the primary UX.
+    if (!this.resultsEligible()) return;
 
     this.navigatingToResults.set(true);
 

@@ -99,7 +99,7 @@ describe('an empty resubmission on an already resolved-correct question', () => 
     const state = verdicts.verdictFor(QUIZ, Q1);
     expect(state.phase).toBe('resolved'); // NOT 'incomplete'
     expect(state.isResolvedCorrect).toBe(true);
-    expect(blocksIntermediateProgression(state.phase, state.isResolvedCorrect)).toBe(false); // Next/forward-nav stays unblocked
+    expect(blocksIntermediateProgression(state.phase, state.selectedOptionTexts.length > 0, state.isResolvedCorrect)).toBe(false); // Next/forward-nav stays unblocked
   });
 
   it('still ends up incomplete for a genuinely UNRESOLVED question (no artifact protection applies)', () => {
@@ -107,11 +107,11 @@ describe('an empty resubmission on an already resolved-correct question', () => 
     resolveLatest(EMPTY_INCOMPLETE);
     const state = verdicts.verdictFor(QUIZ, Q1);
     expect(state.phase).toBe('incomplete');
-    expect(blocksIntermediateProgression(state.phase, state.isResolvedCorrect)).toBe(true);
+    expect(blocksIntermediateProgression(state.phase, state.selectedOptionTexts.length > 0, state.isResolvedCorrect)).toBe(true);
   });
 
   it('does not protect a resolved-INCORRECT question — an empty resubmission there still lands as incomplete', () => {
-    // Resolved-incorrect ALREADY blocks intermediate progression (the two
+    // Resolved-incorrect with a selection no longer blocks Next (the two
     // phases agree either way), but this pins that the guard is specific to
     // isResolvedCorrect===true, not just phase==='resolved'.
     submit(['turbo']);
@@ -120,7 +120,7 @@ describe('an empty resubmission on an already resolved-correct question', () => 
     resolveLatest(EMPTY_INCOMPLETE);
     const state = verdicts.verdictFor(QUIZ, Q1);
     expect(state.phase).toBe('incomplete');
-    expect(blocksIntermediateProgression(state.phase, state.isResolvedCorrect)).toBe(true);
+    expect(blocksIntermediateProgression(state.phase, state.selectedOptionTexts.length > 0, state.isResolvedCorrect)).toBe(true);
   });
 
   it('a REAL (non-empty) partial resubmission on an already resolved-correct question is NOT swallowed', () => {

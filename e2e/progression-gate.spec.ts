@@ -306,4 +306,37 @@ test.describe('Directly opened question — revisit restoration and Results elig
     await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
     await expectExplanationShown(page, widgetsQuiz, 3); // the expired question restores its explanation
   });
+
+  for (const route of ['URL', 'progress dot'] as const) {
+    for (const kind of ['incorrect', 'correct'] as const) {
+      test(`last question reached by ${route}, earlier questions untouched, ${kind} selection: Show Results is enabled and opens Results`, async ({ page }) => {
+        await startViaUi(page, /fixture widgets/i);
+        const last = widgetsQuiz.questions.length;
+        if (route === 'URL') {
+          await gotoQuestionDirect(page, 'fixture-widgets', last);
+        } else {
+          await page.locator('.dot').nth(last - 1).click();
+          await page.locator(ROW).first().waitFor({ state: 'visible', timeout: 15_000 });
+        }
+        expect(questionIndexFromUrl(page)).toBe(last);
+        await expect(page.locator(RESULTS_BTN)).toHaveCount(0); // nothing selected yet
+
+        const heading = (await page.locator(HEADING).first().textContent()) ?? '';
+        const right = correctIndicesForHeading(widgetsQuiz, heading);
+        const pick = kind === 'correct' ? (right[0] ?? 0) : ([0, 1, 2, 3].find((i) => !right.includes(i)) ?? 0);
+        await page.locator(ROW).nth(pick).click({ timeout: 5000 });
+
+        // Once the backend has verified the selection the button is shown AND enabled, whatever the earlier questions did.
+        await expect(page.locator(RESULTS_BTN)).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator(RESULTS_BTN)).toBeEnabled();
+        if (kind === 'incorrect') {
+          // no explanation is revealed for an incorrect answer
+          expect(((await page.locator(HEADING).first().textContent()) ?? '').toLowerCase()).toContain(stemOf(widgetsQuiz, last));
+        }
+
+        await page.locator(RESULTS_BTN).click();
+        await page.waitForURL(//quiz/results//, { timeout: 15_000 });
+      });
+    }
+  }
 });

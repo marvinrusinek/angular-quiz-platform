@@ -506,12 +506,42 @@ describe('QuizComponent — progression gate (single-answer)', () => {
     expect(laterDotClickable()).toBe(true);
   });
 
-  it('6. resolved INCORRECT remains blocked — the user must try again', () => {
+  it('6. resolved INCORRECT (an incorrect-only selection) ALLOWS Next — answered, not correct — without marking it correct', async () => {
     pick();
     resolve(0, RESOLVED_INCORRECT);
     expect(phase()).toBe('resolved');
+    expect(nextButton()!.disabled).toBe(false);
+    expect(component.nextButtonEnabled()).toBe(true); // the keyboard path reads this
+    expect(laterDotClickable()).toBe(true);
+
+    await component.advanceToNextQuestion(); // the handler agrees with the button
+    expect(advance()).toHaveBeenCalledWith(component, 'next');
+    // Navigation changed nothing about the answer: still an incorrect verdict, nothing credited, no explanation.
+    const state = verdicts.verdictFor(QUIZ, QUESTION);
+    expect(state.phase).toBe('resolved');
+    expect(state.isResolvedCorrect).toBe(false);
+  });
+
+  it('6b. nothing selected (idle) keeps Next disabled — button, handler and keyboard signal all agree', async () => {
+    expect(phase()).toBe('idle');
     expect(nextButton()!.disabled).toBe(true);
-    expect(laterDotClickable()).toBe(true); // dots are not gated
+    expect(component.nextButtonEnabled()).toBe(false);
+    await component.advanceToNextQuestion();
+    expect(advance()).not.toHaveBeenCalled();
+  });
+
+  it('6c. deselecting everything (an empty selection answered by the backend) blocks Next again', async () => {
+    pick(['map']);
+    resolve(0, RESOLVED_INCORRECT);
+    expect(nextButton()!.disabled).toBe(false);
+
+    pick([]); // the user deselects the only selected option
+    resolve(1, { status: 'incomplete', selectedVerdicts: [], remainingCorrectCount: 1 } as QuestionCheckResult);
+    expect(verdicts.verdictFor(QUIZ, QUESTION).selectedOptionTexts).toEqual([]);
+    expect(nextButton()!.disabled).toBe(true);
+    expect(component.nextButtonEnabled()).toBe(false);
+    await component.advanceToNextQuestion();
+    expect(advance()).not.toHaveBeenCalled();
   });
 
   it('7. resolved CORRECT enables Next (and the keyboard path)', () => {
@@ -538,12 +568,12 @@ describe('QuizComponent — progression gate (single-answer)', () => {
     expect(nextButton()!.disabled).toBe(true);
   });
 
-  it('10. retry resolved INCORRECT remains blocked', () => {
+  it('10. retry resolved INCORRECT allows Next (answered, not correct)', () => {
     pick();
     failCheck(0);
     retryButton()!.click();
     resolve(1, RESOLVED_INCORRECT);
-    expect(nextButton()!.disabled).toBe(true);
+    expect(nextButton()!.disabled).toBe(false);
   });
 
   it('11. retry resolved CORRECT enables progression', async () => {
@@ -611,10 +641,26 @@ describe('QuizComponent — progression gate (multi-answer)', () => {
 
   const pickMulti = (texts: string[]) => pick(texts, MULTI_QUESTION);
 
-  it('13. a PARTIAL selection remains blocked', () => {
+  it('13. a PARTIAL selection (one correct, more outstanding) ALLOWS Next, and stays a partial answer', async () => {
     pickMulti(['map']);
     resolve(0, INCOMPLETE_MULTI);
     expect(phase(MULTI_QUESTION)).toBe('incomplete');
+    expect(nextButton()!.disabled).toBe(false);
+    expect(component.nextButtonEnabled()).toBe(true);
+
+    await component.advanceToNextQuestion();
+    expect(TestBed.inject(QuizSetupService).advanceQuestion as unknown as jest.Mock).toHaveBeenCalledWith(component, 'next');
+    // Not completed by leaving: still incomplete, with correct answers outstanding.
+    expect(verdicts.verdictFor(QUIZ, MULTI_QUESTION).phase).toBe('incomplete');
+    expect(verdicts.verdictFor(QUIZ, MULTI_QUESTION).remainingCorrectCount).toBeGreaterThan(0);
+  });
+
+  it('13b. deselecting every option of a multiple-answer question blocks Next', () => {
+    pickMulti(['map']);
+    resolve(0, INCOMPLETE_MULTI);
+    expect(nextButton()!.disabled).toBe(false);
+    pickMulti([]);
+    resolve(1, { status: 'incomplete', selectedVerdicts: [], remainingCorrectCount: 2 } as QuestionCheckResult);
     expect(nextButton()!.disabled).toBe(true);
   });
 
@@ -625,14 +671,14 @@ describe('QuizComponent — progression gate (multi-answer)', () => {
     expect(nextButton()!.disabled).toBe(true);
   });
 
-  it('15. resolved incorrect / incomplete selection remains blocked', () => {
+  it('15. resolved incorrect / incomplete selections allow Next (answered, not correct)', () => {
     pickMulti(['map', 'filter']); // one correct, one wrong extra — still not the exact set
     resolve(0, INCOMPLETE_MULTI);
-    expect(nextButton()!.disabled).toBe(true);
+    expect(nextButton()!.disabled).toBe(false);
 
     pickMulti(['map', 'switchMap', 'filter']);
     resolve(1, RESOLVED_INCORRECT);
-    expect(nextButton()!.disabled).toBe(true);
+    expect(nextButton()!.disabled).toBe(false);
   });
 
   it('16. the complete resolved-correct answer enables progression', () => {
@@ -705,7 +751,7 @@ describe('QuizComponent — final question submission policy (Results)', () => {
 
   it('18. a completed INCOMPLETE (partial multi-answer) response with a selection allows Results', () => {
     // `incomplete` is a COMPLETED backend response (not a pending one — see
-    // canSubmitFinalQuestion's doc comment), so on the final question it
+    // questionBlocksResults's doc comment), so on the final question it
     // follows the same "selection + backend responded" policy as `resolved`.
     pick(['map']);
     resolve(0, {
@@ -728,10 +774,23 @@ describe('QuizComponent — final question submission policy (Results)', () => {
     expect(resultsButton()).toBeNull();
   });
 
-  it('19. expiry allows Results through the approved path, even with no selection and no completed response', () => {
+  it('19. an authoritative expired verdict allows Results with no selection; a LOCAL timeout alone does not', () => {
     expect(phase()).toBe('idle');
-    expireCurrentQuestion();
+    expireCurrentQuestion(); // the local countdown ran out; the server has not confirmed
+    expect(resultsButton()).toBeNull();
+
+    verdicts.revealExpiredQuestion(QUIZ, QUESTION).subscribe({ error: () => undefined });
+    expiries[expiries.length - 1]!.subject.next({ status: 'expired', correctOptionTexts: ['map'], explanation: 'e' } as QuestionCheckResult);
+    expect(phase()).toBe('expired');
+    fixture.detectChanges();
     expect(resultsButton()).not.toBeNull();
+  });
+
+  it('19b. an incorrect or partial last-question attempt allows Results, earns no credit and reveals no explanation', () => {
+    pick(['filter']);
+    resolve(0, RESOLVED_INCORRECT);
+    expect(resultsButton()).not.toBeNull();
+    expect(verdicts.verdictFor(QUIZ, QUESTION).isResolvedCorrect).toBe(false);
   });
 
   it('20. Results reads only the backend verdict — no client-side correctness is inferred', () => {
@@ -798,7 +857,7 @@ describe('QuizComponent — progression unlock call sites', () => {
     expect(progression.unlockThrough).not.toHaveBeenCalled();
   });
 
-  it('7. an INCOMPLETE (partial multi-answer) verdict cannot create an attempt or unlock', async () => {
+  it('7. an INCOMPLETE (partial multi-answer) verdict may leave the question (Next is "answered"); it stays partial', async () => {
     component.currentQuestionIndex.set(1); // the multi-answer question
     fixture.detectChanges();
     pick(['map'], MULTI_QUESTION);
@@ -806,16 +865,18 @@ describe('QuizComponent — progression unlock call sites', () => {
 
     await component.advanceToNextQuestion();
 
-    expect(progression.unlockThrough).not.toHaveBeenCalled();
+    expect(progression.unlockThrough).toHaveBeenCalledTimes(1); // the reached-marker only; routing no longer depends on it
+    expect(verdicts.verdictFor(QUIZ, MULTI_QUESTION).phase).toBe('incomplete');
   });
 
-  it('8. a resolved-INCORRECT verdict cannot create an attempt or unlock', async () => {
+  it('8. a resolved-INCORRECT verdict may leave the question (Next is "answered"); it stays incorrect', async () => {
     pick();
     resolve(0, RESOLVED_INCORRECT);
 
     await component.advanceToNextQuestion();
 
-    expect(progression.unlockThrough).not.toHaveBeenCalled();
+    expect(progression.unlockThrough).toHaveBeenCalledTimes(1);
+    expect(verdicts.verdictFor(QUIZ, QUESTION).isResolvedCorrect).toBe(false);
   });
 
   it('9. an ERROR / retry-pending verdict cannot create an attempt or unlock', async () => {
@@ -1055,5 +1116,172 @@ describe('QuizComponent — browser tab title (document-title fix)', () => {
 
     f.destroy();
     expect(document.title).toBe(ORIGINAL_TITLE);
+  });
+});
+
+/**
+ * RESULTS AFTER A DIRECT URL JUMP. A directly opened last question records nothing for the earlier ones, so Results must stay
+ * unavailable until each earlier question is resolved correct or server-confirmed expired — the same rule Next applies —
+ * however the last question was reached.
+ */
+describe('QuizComponent — last question: ANY selected option (backend-verified) is enough for Results', () => {
+  const lastMulti = (): void => {
+    component.totalQuestions.set(2);
+    component.currentQuestionIndex.set(1);
+    fixture.detectChanges();
+    // the earlier question is settled (answered correctly) so only the LAST question's own rule is under test
+    pick(['map']);
+    resolve(0, RESOLVED_CORRECT);
+  };
+  const results = (): boolean => {
+    fixture.detectChanges();
+    return resultsButton() !== null;
+  };
+
+  it('a multiple-answer last question with ONLY an incorrect option selected allows Results once verified', () => {
+    lastMulti();
+    pick(['filter'], MULTI_QUESTION);
+    expect(results()).toBe(false); // verification still in flight
+    resolve(checks.length - 1, { status: 'incomplete', selectedVerdicts: [{ text: 'filter', correct: false }], remainingCorrectCount: 2 } as QuestionCheckResult);
+    expect(phase(MULTI_QUESTION)).toBe('incomplete');
+    expect(results()).toBe(true);
+    component.advanceToResults();
+    expect(component.navigatingToResults()).toBe(true);
+  });
+
+  it('a partial correct selection allows Results; no selection, a failed check or an in-flight check do not', () => {
+    lastMulti();
+    expect(results()).toBe(false); // nothing selected on the last question
+    pick(['map'], MULTI_QUESTION);
+    failCheck(checks.length - 1);
+    expect(results()).toBe(false); // failed check
+    selected.retryVerdict(1);
+    expect(results()).toBe(false); // retry pending
+    resolve(checks.length - 1, { status: 'incomplete', selectedVerdicts: [{ text: 'map', correct: true }], remainingCorrectCount: 1 } as QuestionCheckResult);
+    expect(results()).toBe(true);
+  });
+
+  it('selecting an option and then deselecting everything blocks Results again', () => {
+    lastMulti();
+    pick(['filter'], MULTI_QUESTION);
+    resolve(checks.length - 1, { status: 'incomplete', selectedVerdicts: [{ text: 'filter', correct: false }], remainingCorrectCount: 2 } as QuestionCheckResult);
+    expect(results()).toBe(true);
+    pick([], MULTI_QUESTION);
+    resolve(checks.length - 1, { status: 'incomplete', selectedVerdicts: [], remainingCorrectCount: 2 } as QuestionCheckResult);
+    expect(results()).toBe(false);
+  });
+});
+
+/**
+ * RESULTS ON THE LAST QUESTION, WITH EARLIER QUESTIONS UNTOUCHED. However the last question was reached (typed URL, progress
+ * dot, Next), any backend-verified selection there (correct, incorrect or partial) or an authoritative expiry shows AND enables
+ * Show Results. Earlier questions are not required to be answered: they stay unanswered. Pending and failed checks still block.
+ */
+describe('QuizComponent — Results after jumping ahead by URL', () => {
+  const onLastOfTwo = (): void => {
+    component.totalQuestions.set(2);
+    component.currentQuestionIndex.set(1); // the last question, opened directly
+    fixture.detectChanges();
+  };
+  const verifyLast = (result: QuestionCheckResult, texts: string[] = ['map']): void => {
+    pick(texts, MULTI_QUESTION);
+    resolve(checks.length - 1, result);
+  };
+  const INCORRECT_LAST = { status: 'incomplete', selectedVerdicts: [{ text: 'filter', correct: false }], remainingCorrectCount: 2 } as QuestionCheckResult;
+  const PARTIAL_LAST = { status: 'incomplete', selectedVerdicts: [{ text: 'map', correct: true }], remainingCorrectCount: 1 } as QuestionCheckResult;
+
+  /** Visible AND enabled, and the handler proceeds: the button and the handler agree. */
+  const expectResults = (enabled: boolean): void => {
+    fixture.detectChanges();
+    const button = resultsButton() as HTMLButtonElement | null;
+    expect(button).not.toBeNull();
+    expect(button!.disabled).toBe(!enabled);
+    component.advanceToResults();
+    expect(component.navigatingToResults()).toBe(enabled);
+  };
+
+  it.each([
+    ['URL', (): void => { component.currentQuestionIndex.set(1); }],
+    ['progress dot', (): void => { void component.navigateToDot(1); component.currentQuestionIndex.set(1); }]
+  ])('reaching the last question by %s with earlier questions untouched: an incorrect, partial or correct verified selection shows AND enables Show Results', (_route, arrive) => {
+    for (const result of [INCORRECT_LAST, PARTIAL_LAST, RESOLVED_CORRECT_MULTI]) {
+      TestBed.resetTestingModule();
+      void mountQuiz();
+      component.totalQuestions.set(2);
+      arrive();
+      fixture.detectChanges();
+      expect(phase()).toBe('idle'); // the earlier question was never touched
+      expect(resultsButton()).toBeNull(); // nothing selected on the last question yet
+
+      pick(['x'], MULTI_QUESTION);
+      expect(resultsButton()).toBeNull(); // verification still in flight
+      resolve(checks.length - 1, result);
+      expectResults(true);
+      expect(phase()).toBe('idle'); // still untouched: nothing was fabricated for the skipped question
+    }
+  });
+
+  it('visible AND enabled while the earlier question is unanswered; nothing is fabricated for it', () => {
+    onLastOfTwo();
+    verifyLast(RESOLVED_CORRECT_MULTI);
+    expect(phase()).toBe('idle');
+    expectResults(true);
+    expect(verdicts.verdictFor(QUIZ, QUESTION).selectedOptionTexts).toEqual([]);
+  });
+
+  it('an incorrect or partial last answer earns nothing and reveals no explanation', () => {
+    onLastOfTwo();
+    verifyLast(INCORRECT_LAST, ['filter']);
+    expectResults(true);
+    expect(verdicts.verdictFor(QUIZ, MULTI_QUESTION).phase).toBe('incomplete');
+    expect(verdicts.verdictFor(QUIZ, MULTI_QUESTION).explanation).toBeNull();
+  });
+
+  it('an earlier question left INCORRECT, PARTIAL or CORRECT does not matter', () => {
+    onLastOfTwo();
+    pick(['filter']);
+    resolve(0, RESOLVED_INCORRECT);
+    verifyLast(PARTIAL_LAST);
+    expectResults(true);
+  });
+
+  it('a pending check anywhere blocks Results, and so does a failed one', () => {
+    onLastOfTwo();
+    pick(['map']); // the earlier question's check is still in flight
+    verifyLast(RESOLVED_CORRECT_MULTI);
+    fixture.detectChanges();
+    expect(component.resultsButtonEnabled).toBe(false);
+    component.advanceToResults();
+    expect(component.navigatingToResults()).toBe(false);
+    failCheck(0);
+    expect(component.resultsButtonEnabled).toBe(false); // failed
+  });
+
+  it('the last question deselected back to nothing hides Results again', () => {
+    onLastOfTwo();
+    verifyLast(INCORRECT_LAST, ['filter']);
+    fixture.detectChanges();
+    expect((resultsButton() as HTMLButtonElement).disabled).toBe(false);
+    pick([], MULTI_QUESTION);
+    resolve(checks.length - 1, { status: 'incomplete', selectedVerdicts: [], remainingCorrectCount: 2 } as QuestionCheckResult);
+    fixture.detectChanges();
+    expect(resultsButton()).toBeNull();
+  });
+
+  it('an authoritative expired verdict on the last question shows and enables Results; a local timeout alone does not', () => {
+    onLastOfTwo();
+    expireCurrentQuestion(); // local countdown only
+    fixture.detectChanges();
+    expect(resultsButton()).toBeNull();
+    verdicts.revealExpiredQuestion(QUIZ, MULTI_QUESTION).subscribe({ error: () => undefined });
+    expiries[expiries.length - 1]!.subject.next({ status: 'expired', correctOptionTexts: ['map'], explanation: 'e' } as QuestionCheckResult);
+    expectResults(true);
+  });
+
+  it('visiting the last question marks nothing answered or completed for the earlier ones', () => {
+    onLastOfTwo();
+    expect(phase()).toBe('idle');
+    expect(verdicts.hasBlockingVerdicts(QUIZ)).toBe(false);
+    expect(resultsButton()).toBeNull();
   });
 });

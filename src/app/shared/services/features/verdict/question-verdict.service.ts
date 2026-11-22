@@ -291,7 +291,7 @@ export class QuestionVerdictService {
    * retried?
    *
    * This is a defense-in-depth backstop, not the final question's own
-   * submission policy (that is `canSubmitFinalQuestion` in
+   * submission policy (that is `questionBlocksResults` in
    * `progression-gate.ts`, applied by the caller for the CURRENT question
    * specifically). With the intermediate-progression gate in place, an
    * EARLIER question can no longer legitimately be left `checking` or

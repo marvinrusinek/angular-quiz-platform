@@ -324,6 +324,15 @@ mat-card {
           box-shadow: 0 0 0 3px rgba(vars.$dodger-blue, 0.3);
         }
 
+        // Visible but not yet allowed: earlier questions still need an answer or an expiry.
+        &:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+          transform: none;
+          background-color: vars.$dodger-blue;
+          border-color: vars.$dodger-blue;
+        }
+
         i {
           font-size: 20px;
         }

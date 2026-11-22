@@ -137,6 +137,7 @@
                   <button
                     type="button"
                     (click)="advanceToResults()"
+                    [disabled]="!resultsButtonEnabled"
                     class="show-results-btn"
                     aria-label="Show Results"
                     i18n-aria-label

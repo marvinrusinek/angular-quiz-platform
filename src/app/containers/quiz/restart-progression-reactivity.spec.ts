@@ -217,7 +217,7 @@ describe('Restart: the progression gate keeps reacting after a transient quizId-
     expect(nextButton()!.disabled).toBe(true);
   });
 
-  it('6. resolved incorrect in the restarted run remains blocked', () => {
+  it('6. resolved incorrect in the restarted run allows Next (answered, not correct)', () => {
     pick();
     resolve(0, RESOLVED_CORRECT);
     verdicts.clearAll();
@@ -229,7 +229,7 @@ describe('Restart: the progression gate keeps reacting after a transient quizId-
 
     pick();
     resolve(1, RESOLVED_INCORRECT);
-    expect(nextButton()!.disabled).toBe(true);
+    expect(nextButton()!.disabled).toBe(false);
   });
 
   it('7. timer state belongs to the new run — an expiry flag from the OLD run does not leak in, and a fresh one still unblocks', () => {

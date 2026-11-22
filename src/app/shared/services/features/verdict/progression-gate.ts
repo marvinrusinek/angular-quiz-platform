@@ -6,52 +6,46 @@ import type { QuestionVerdictPhase } from './question-verdict.types';
  * folded into one ambiguous rule:
  *
  *   - `blocksIntermediateProgression` — may the user leave THIS question via
- *     Next, keyboard advancement, or a forward dot-jump, to reach a LATER
- *     question? Correctness-gated: only a resolved-CORRECT verdict, or the
- *     established expiry path, may unblock. A partial or resolved-incorrect
- *     multi/single-answer selection blocks, and there is no "leave it partial,
- *     finish on revisit" bypass — the correctness rule wins there.
+ *     Next or keyboard advancement, to reach a LATER question? ANSWERED, not
+ *     CORRECT: at least one option is selected and the backend has responded
+ *     (a resolved or incomplete verdict, right or wrong), or the question has
+ *     an authoritative `expired` verdict. Nothing is selected, or the check is
+ *     still in flight or failed → blocked. Leaving a question this way records
+ *     nothing: the answer keeps whatever verdict the backend gave it (an
+ *     incorrect or partial answer is never marked correct, earns nothing and
+ *     reveals no explanation); only a fully correct answer or an expiry does.
  *
- *   - `canSubmitFinalQuestion` — may the FINAL question submit to Results?
- *     A DIFFERENT, already-established policy: "Show Results only after at
- *     least one option has been selected." Correctness is NOT required —
- *     scoring stays backend-authoritative and is computed at Results,
- *     regardless of whether the last question's own answer was right.
+ *   - `questionBlocksResults` — does a question (the last included) keep Results
+ *     unavailable? The same "a backend-verified attempt, or an authoritative
+ *     expiry" rule as Next, WITHOUT Next's local-timeout allowance.
  */
 
-/** Intermediate question → may the user move past it? */
+/** Intermediate question → may the user move past it? (selection + a completed backend response, or expiry) */
 export function blocksIntermediateProgression(
   phase: QuestionVerdictPhase | null | undefined,
-  isResolvedCorrect: boolean | null | undefined
+  hasSelection: boolean,
+  isResolvedCorrect?: boolean | null
 ): boolean {
   if (phase === 'expired') return false;
-  if (phase === 'resolved') return isResolvedCorrect !== true;
-  return true; // idle | checking | incomplete | error | no state yet
+  // A fully correct verdict is an answer whatever the live selection reads (a revisit can submit an empty set that leaves the
+  // verdict resolved-correct).
+  if (phase === 'resolved' && isResolvedCorrect === true) return false;
+  if (!hasSelection) return true;
+  return !(phase === 'resolved' || phase === 'incomplete'); // idle | checking | error | no state yet
 }
 
 /**
- * Final question → may Results be submitted?
+ * ANY question (the last included) → does it keep Results unavailable?
  *
- * `incomplete` is never a pending/pre-dispatch state: `IDLE_VERDICT_STATE`
- * (never checked) is phase `'idle'`, and `checking` is the ONLY in-flight
- * phase. `incomplete` is written exclusively by `applyResult()` when the
- * backend's response itself was `status: 'incomplete'` — i.e. it is always a
- * COMPLETED round trip, on par with `resolved`, just not (yet) the exact
- * correct set. So a completed `incomplete` response with a current selection
- * satisfies "answered and the backend has responded", exactly as a `resolved`
- * one does — correctness is not the question here.
- *
- * `hasSelection` should read the verdict state's OWN `selectedOptionTexts`
- * (what the last submission/response carries), not a locally-tracked flag —
- * a user who selected something and then deselected back to empty submits an
- * EMPTY set, which resolves `incomplete` with no selection, and that must
- * still count as "no selection" here.
+ * Results needs every question to have a BACKEND-VERIFIED attempt — correct, incorrect or partial — or an authoritative
+ * `expired` verdict. An attempt is a selection the backend has answered (a resolved or incomplete verdict). Unanswered
+ * questions, checks in flight or failed, and a local timeout the server has not confirmed keep Results blocked. Incorrect and
+ * partial attempts earn no credit and reveal no explanation: that is decided by the verdict and the heading, not here.
  */
-export function canSubmitFinalQuestion(
+export function questionBlocksResults(
   phase: QuestionVerdictPhase | null | undefined,
-  hasSelection: boolean
+  hasSelection: boolean,
+  isResolvedCorrect?: boolean | null
 ): boolean {
-  if (phase === 'expired') return true;
-  if (!hasSelection) return false;
-  return phase === 'resolved' || phase === 'incomplete';
+  return blocksIntermediateProgression(phase, hasSelection, isResolvedCorrect);
 }

@@ -1,4 +1,5 @@
 import { createApp } from './app';
+import { listenOnAllInterfaces } from './listen';
 import { ConfigError, loadConfig, type AppConfig } from './config';
 import { createQuizRepositoryFromDatabase, describeBank, type QuizRepository } from './quiz/quiz.repository';
 import { openDatabase, type DatabaseHandle } from './db/database';
@@ -60,8 +61,9 @@ async function main(): Promise<void> {
     certificateRetrievalService: certificateClaims.retrievalService
   });
 
-  const server = app.listen(config.port, () => {
+  const server = listenOnAllInterfaces(app, config.port, (boundTo) => {
     console.log(`[server] listening on :${config.port} (${config.nodeEnv})`);
+    console.log(`[server] bound to ${boundTo}`);
     console.log(`[server] allowed origins: ${config.allowedOrigins.join(', ')}`);
   });
 

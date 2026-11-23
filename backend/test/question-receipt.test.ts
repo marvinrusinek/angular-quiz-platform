@@ -275,7 +275,8 @@ describe('expiry is authorized per question', () => {
     expect(res.body).toEqual({
       status: 'expired',
       correctOptionTexts: ['map', 'filter'],
-      explanation: 'map and filter are operators.'
+      explanation: 'map and filter are operators.',
+      finalizationProof: expect.any(String)
     });
   });
 

@@ -16,6 +16,7 @@ export type ResponsePolicyName =
   | 'QUIZ_QUESTIONS'
   | 'ATTEMPT_ISSUED'
   | 'ANSWER_REVEAL'
+  | 'TOPIC_QUIZ_REVIEW'
   | 'ACTIVE_ASSESSMENT'
   | 'SESSION_CREATED'
   | 'SUBMITTED_REVIEW'
@@ -244,6 +245,38 @@ const POLICIES: Record<ResponsePolicyName, ReadonlySet<string>> = {
     'hmac'
     // NOT banned: `correct`, `correctOptionTexts`, `explanation`,
     // `selectedVerdicts`, `remainingCorrectCount` — the authorized payload.
+  ),
+
+  /**
+   * The post-attempt Topic Quiz REVIEW — the one response that releases the answer key in bulk.
+   *
+   * Authorized only for a finalized attempt (see `POST /quizzes/:quizId/review`). Unlike the per-question reveal it may carry
+   * a `questions` collection, but only of `{ questionText, correctOptionTexts, explanation }`: per-option `isCorrect` flags,
+   * `options` arrays, identifiers, backend internals and the signing key all stay banned, so the bulk shape cannot grow into a
+   * dump of the private model.
+   */
+  TOPIC_QUIZ_REVIEW: banned(
+    'isCorrect',
+    'is_correct',
+    'answerKey',
+    'answer_key',
+    'expectedAnswers',
+    'expected_answers',
+    'correctAnswers',
+    'correct_answers',
+    'correctOptionIds',
+    'correct_option_ids',
+    ...INTERNAL_FIELDS,
+    ...IDENTIFIER_FIELDS,
+    'options',
+    'quizzes',
+    'secret',
+    'receiptSecret',
+    'receipt_secret',
+    'topicQuizReceiptSecret',
+    'signingKey',
+    'signing_key',
+    'hmac'
   ),
 
   /**

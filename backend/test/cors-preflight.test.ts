@@ -98,6 +98,23 @@ describe('POST /check preflight', () => {
   });
 });
 
+describe('POST /attempts/finalize and /review preflight', () => {
+  it('allows X-Attempt-Receipt and X-Finalization-Proof on finalize (otherwise the browser never sends the call)', async () => {
+    const res = await preflight('/api/quizzes/rxjs/attempts/finalize', 'x-attempt-receipt, x-finalization-proof, content-type');
+
+    expect(res.status).toBeLessThan(400);
+    expect(allowedHeaders(res)).toContain('x-attempt-receipt');
+    expect(allowedHeaders(res)).toContain('x-finalization-proof');
+  });
+
+  it('allows X-Attempt-Receipt and X-Attempt-Finalization on review', async () => {
+    const res = await preflight('/api/quizzes/rxjs/review', 'x-attempt-receipt, x-attempt-finalization, content-type');
+
+    expect(res.status).toBeLessThan(400);
+    expect(allowedHeaders(res)).toContain('x-attempt-finalization');
+  });
+});
+
 describe('the existing allow-list is preserved', () => {
   it('still allows Content-Type and Authorization', async () => {
     const res = await preflight('/api/quizzes/rxjs/check', 'content-type, authorization');

@@ -15,6 +15,14 @@ import {
   RECEIPT_VERSION
 } from '../quiz/attempt-receipt';
 import {
+  FinalizationProofError,
+  issueAttemptFinalization,
+  issueFinalizationProof,
+  verifyAttemptFinalization,
+  verifyFinalizationProof,
+  type ProofStatus
+} from '../quiz/finalization-proof';
+import {
   QUESTION_DURATION_SECONDS,
   QuestionReceiptError,
   issueQuestionReceipt,
@@ -65,6 +73,12 @@ export interface QuizzesRouterDeps {
   readonly now?: (() => number) | undefined;
   /** Applied to the check route only. */
   readonly checkRateLimiter?: RequestHandler | undefined;
+}
+
+/** Does this check outcome establish a real attempt? (A resolved answer, an expiry, or a partial answer with a selection.) */
+function proofStatusOf(outcome: CheckOutcome): ProofStatus | null {
+  if (outcome.status === 'resolved' || outcome.status === 'expired') return outcome.status;
+  return outcome.selectedVerdicts.length > 0 ? 'incomplete' : null;
 }
 
 export function createQuizzesRouter(deps: QuizRepository | QuizzesRouterDeps): Router {
@@ -333,10 +347,176 @@ export function createQuizzesRouter(deps: QuizRepository | QuizzesRouterDeps): R
       return;
     }
 
-    res.status(200).json(outcome);
+    // PROOF OF A VERIFIED ATTEMPT (the gate for the post-attempt review). Issued only when this response established a real
+    // attempt: a resolved answer, an expiry, or a partial answer with something selected. A response that selected nothing
+    // and has not expired establishes nothing, so it carries no proof. The proof says THAT the question was answered or
+    // expired, never whether it was right.
+    const proofStatus = proofStatusOf(outcome);
+    if (proofStatus === null) {
+      res.status(200).json(outcome);
+      return;
+    }
+    res.status(200).json({
+      ...outcome,
+      finalizationProof: issueFinalizationProof(
+        {
+          v: RECEIPT_VERSION,
+          kind: 'finalization-proof',
+          quizId,
+          questionText: payload.questionText,
+          status: proofStatus,
+          startedAt: payload.startedAt
+        },
+        options.receiptSecret
+      )
+    });
   });
 
   router.post('/quizzes/:quizId/check', ...checkHandlers);
+
+  /**
+   * FINALIZE an attempt (Show Results). Skipped questions are allowed.
+   *
+   * The explicit, server-side state change that makes the post-attempt review possible. It needs the attempt receipt AND a
+   * proof from `/check` that this attempt has a verified answer (resolved, expired, or partial with a selection) whose
+   * question started inside the attempt's window, so an attempt with nothing verified cannot be finalized. It issues a signed
+   * ATTEMPT FINALIZATION bound to this quiz and this attempt. It reveals nothing itself.
+   */
+  const finalizeHandlers: RequestHandler[] = [];
+  if (options.checkRateLimiter) finalizeHandlers.push(options.checkRateLimiter);
+
+  finalizeHandlers.push((req, res, next) => {
+    setResponsePolicy(res, 'ATTEMPT_ISSUED');
+
+    const quizId = req.params['quizId'];
+
+    let attempt;
+    try {
+      attempt = verifyAttemptReceipt(req.header('X-Attempt-Receipt'), options.receiptSecret);
+    } catch (err: unknown) {
+      next(err instanceof AttemptReceiptError ? ApiError.unauthorized('Invalid attempt receipt') : err);
+      return;
+    }
+
+    let proof;
+    try {
+      proof = verifyFinalizationProof(req.header('X-Finalization-Proof'), options.receiptSecret);
+    } catch (err: unknown) {
+      next(err instanceof FinalizationProofError ? ApiError.unauthorized('Invalid finalization proof') : err);
+      return;
+    }
+
+    // Both are bound to ONE quiz; neither may finalize an attempt at another.
+    if (attempt.quizId !== quizId || proof.quizId !== quizId) {
+      next(ApiError.unauthorized('Invalid finalization proof'));
+      return;
+    }
+
+    // The proof's question must have started inside THIS attempt's window. A small grace covers the last question starting
+    // just before the attempt expires.
+    const graceMs = QUESTION_DURATION_SECONDS * 1000;
+    if (proof.startedAt < attempt.startedAt || proof.startedAt > attempt.expiresAt + graceMs) {
+      next(ApiError.unauthorized('Invalid finalization proof'));
+      return;
+    }
+
+    const quiz = repository.getQuizById(quizId);
+    if (!quiz) {
+      next(ApiError.notFound('Quiz not found'));
+      return;
+    }
+
+    // The proof's question must be a real question of THIS quiz (the same lookup the check route uses).
+    try {
+      findQuestion(quiz, proof.questionText);
+    } catch (err: unknown) {
+      next(err instanceof AnswerCheckError ? ApiError.unauthorized('Invalid finalization proof') : err);
+      return;
+    }
+
+    res.status(201).json({
+      quizId: quiz.quizId,
+      finalizationReceipt: issueAttemptFinalization(
+        {
+          v: RECEIPT_VERSION,
+          kind: 'attempt-finalization',
+          quizId: quiz.quizId,
+          attemptStartedAt: attempt.startedAt,
+          finalizedAt: now()
+        },
+        options.receiptSecret
+      )
+    });
+  });
+
+  router.post('/quizzes/:quizId/attempts/finalize', ...finalizeHandlers);
+
+  /**
+   * Post-attempt REVIEW of every question, including the ones the player skipped.
+   *
+   * The only route that releases the answer key in bulk. It requires the attempt to be FINALIZED: a valid attempt receipt
+   * (X-Attempt-Receipt) AND the server's attempt finalization for that same attempt (X-Attempt-Finalization, issued by
+   * `POST /quizzes/:quizId/attempts/finalize`). A `/check` proof alone never authorizes it, and nothing about correctness,
+   * expiry or completion is taken from the request body: there is none. The response carries no verdicts, so skipped
+   * questions are never marked expired or credited. Rate limited like `/check`.
+   *
+   * Residual exposure, stated plainly: the server keeps no per-attempt state and the client may shuffle question order, so a
+   * finalization can only require that the attempt has a server-verified answer, not that every question was reached.
+   * Finalizing is an explicit, signed step, which is what separates "answered one question" from "reviewing the key".
+   * Tightening it further needs per-attempt state and a server-known question order.
+   */
+  const reviewHandlers: RequestHandler[] = [];
+  if (options.checkRateLimiter) reviewHandlers.push(options.checkRateLimiter);
+
+  reviewHandlers.push((req, res, next) => {
+    setResponsePolicy(res, 'TOPIC_QUIZ_REVIEW');
+
+    const quizId = req.params['quizId'];
+
+    let attempt;
+    try {
+      attempt = verifyAttemptReceipt(req.header('X-Attempt-Receipt'), options.receiptSecret);
+    } catch (err: unknown) {
+      next(err instanceof AttemptReceiptError ? ApiError.unauthorized('Invalid attempt receipt') : err);
+      return;
+    }
+
+    let finalization;
+    try {
+      finalization = verifyAttemptFinalization(req.header('X-Attempt-Finalization'), options.receiptSecret);
+    } catch (err: unknown) {
+      next(err instanceof FinalizationProofError ? ApiError.unauthorized('Invalid attempt finalization') : err);
+      return;
+    }
+
+    // Bound to ONE quiz and to THIS attempt: a finalization of another quiz or another attempt never authorizes this review.
+    if (
+      attempt.quizId !== quizId ||
+      finalization.quizId !== quizId ||
+      finalization.attemptStartedAt !== attempt.startedAt
+    ) {
+      next(ApiError.unauthorized('Invalid attempt finalization'));
+      return;
+    }
+
+    const quiz = repository.getQuizById(quizId);
+    if (!quiz) {
+      next(ApiError.notFound('Quiz not found'));
+      return;
+    }
+
+    res.status(200).json({
+      quizId: quiz.quizId,
+      questions: quiz.questions.map((question) => ({
+        questionText: question.questionText,
+        // Source order and the EXACT stored strings, as the per-question reveal returns them.
+        correctOptionTexts: question.options.filter((option) => option.isCorrect).map((option) => option.text),
+        explanation: question.explanation
+      }))
+    });
+  });
+
+  router.post('/quizzes/:quizId/review', ...reviewHandlers);
 
   return router;
 }

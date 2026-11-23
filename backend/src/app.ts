@@ -125,13 +125,16 @@ function buildCorsOptions(config: AppConfig): CorsOptions {
     // generic failure. POST /attempts kept working precisely because it sends
     // no custom header, which is what made the defect look like a client bug.
     //
-    // Named individually rather than widened: these are the only two custom
-    // headers the API accepts.
+    // Named individually rather than widened: these are the only custom
+    // headers the API accepts. The last two belong to the post-attempt review:
+    // X-Finalization-Proof (finalize) and X-Attempt-Finalization (review).
     allowedHeaders: [
       'Content-Type',
       'Authorization',
       'X-Attempt-Receipt',
-      'X-Question-Receipt'
+      'X-Question-Receipt',
+      'X-Finalization-Proof',
+      'X-Attempt-Finalization'
     ],
     credentials: false,
     maxAge: 600

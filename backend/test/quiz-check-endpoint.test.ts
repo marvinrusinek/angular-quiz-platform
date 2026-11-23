@@ -246,7 +246,8 @@ describe('single and trueFalse resolve on any answer', () => {
       status: 'resolved',
       correct: true,
       correctOptionTexts: ['A multicast observable'],
-      explanation: 'Because a Subject multicasts.'
+      explanation: 'Because a Subject multicasts.',
+      finalizationProof: expect.any(String)
     });
   });
 
@@ -320,7 +321,8 @@ describe('multiple-answer uses the SUPERSET rule (correctSet ⊆ selectedSet)', 
       status: 'resolved',
       correct: true,
       correctOptionTexts: ['map', 'filter'],
-      explanation: 'map and filter are operators.'
+      explanation: 'map and filter are operators.',
+      finalizationProof: expect.any(String)
     });
   });
 
@@ -346,7 +348,8 @@ describe('multiple-answer uses the SUPERSET rule (correctSet ⊆ selectedSet)', 
     expect(res.body).toEqual({
       status: 'incomplete',
       selectedVerdicts: [{ text: 'map', correct: true }],
-      remainingCorrectCount: 1
+      remainingCorrectCount: 1,
+      finalizationProof: expect.any(String)
     });
   });
 
@@ -563,7 +566,8 @@ describe('expiry is server-authoritative', () => {
     expect(res.body).toEqual({
       status: 'expired',
       correctOptionTexts: ['map', 'filter'],
-      explanation: 'map and filter are operators.'
+      explanation: 'map and filter are operators.',
+      finalizationProof: expect.any(String)
     });
   });
 
@@ -660,7 +664,7 @@ describe('reveal responses carry no identifiers or bulk data', () => {
       questionText: 'Which answer is correct?', selectedOptionTexts: ['A pipe']
     });
     expect(Object.keys(res.body).sort())
-      .toEqual(['correct', 'correctOptionTexts', 'explanation', 'status']);
+      .toEqual(['correct', 'correctOptionTexts', 'explanation', 'finalizationProof', 'status']);
   });
 
   it('incomplete response has EXACTLY the approved keys', async () => {
@@ -669,7 +673,7 @@ describe('reveal responses carry no identifiers or bulk data', () => {
       questionText: 'Select every operator', selectedOptionTexts: ['map']
     });
     expect(Object.keys(res.body).sort())
-      .toEqual(['remainingCorrectCount', 'selectedVerdicts', 'status']);
+      .toEqual(['finalizationProof', 'remainingCorrectCount', 'selectedVerdicts', 'status']);
     expect(Object.keys(res.body.selectedVerdicts[0]).sort()).toEqual(['correct', 'text']);
   });
 

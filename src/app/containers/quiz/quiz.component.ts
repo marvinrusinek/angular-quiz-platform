@@ -183,7 +183,10 @@ export class QuizComponent implements OnInit, AfterViewInit {
   // Previous (which reuse this same instance) refocus too, while an
   // answer click, a feedback update, or a timer tick (none of which change
   // this index) never re-trigger it.
+  // The question whose arrival focus has SUCCEEDED (set only after the logo really holds focus), and the one whose
+  // attempt is queued for after the next render (so repeated effect runs queue it only once).
   private lastFocusedQuestionIndex: number | null = null;
+  private pendingFocusIndex: number | null = null;
 
   // ── remaining variables ─────────────────────────────────────────
   readonly selectedQuiz = signal<Quiz | null>(null);
@@ -526,10 +529,14 @@ export class QuizComponent implements OnInit, AfterViewInit {
     effect(() => {
       const idx = this.currentQuestionIndex();
       const qa = this.combinedQuestionDataView();
+      // Reading the header signal makes this effect run again when the header is created, so an attempt that found no
+      // header is retried then — no timers or polling.
+      this.quizHeader();
       const ready = !!qa?.options?.length;
-      if (!ready || idx === this.lastFocusedQuestionIndex) return;
+      if (!ready) return;
+      if (idx === this.lastFocusedQuestionIndex || idx === this.pendingFocusIndex) return;
       const isInitialArrival = this.lastFocusedQuestionIndex === null;
-      this.lastFocusedQuestionIndex = idx;
+      this.pendingFocusIndex = idx;
 
       // afterNextRender's callback is automatically cancelled by Angular if
       // `this.injector` (this component) is destroyed before the next
@@ -543,9 +550,13 @@ export class QuizComponent implements OnInit, AfterViewInit {
       // no other ordering guarantee between them.
       afterNextRender(
         () => {
+          this.pendingFocusIndex = null;
           // Ignore a queued transition superseded by faster navigation.
           if (this.currentQuestionIndex() !== idx) return;
-          this.quizHeader()?.focusLogo();
+          // Arrival is handled only once the logo really holds focus. If it did not (the header was not available),
+          // nothing is consumed and the effect retries when its inputs next change.
+          if (!this.quizHeader()?.focusLogo()) return;
+          this.lastFocusedQuestionIndex = idx;
           if (!isInitialArrival) {
             this.answerAnnouncementCoordinator.announceQuestionArrival();
           }

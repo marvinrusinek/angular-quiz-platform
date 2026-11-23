@@ -76,7 +76,7 @@ test.describe('Topic Quiz navigation-arrival announcement (Next/Previous only, c
     expect(headingText).toContain(doohickeys.questions[qIdx].questionText.slice(0, 20));
 
     await expect(page.locator(
-      'codelab-quiz-header a:has(img.header-image)'
+      'codelab-quiz-header button.quiz-header__logo'
     )).toBeFocused();
 
     const announced = await announcerText(page);

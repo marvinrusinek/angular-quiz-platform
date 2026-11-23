@@ -2,7 +2,7 @@ import {
   ChangeDetectionStrategy, Component, computed, ElementRef, inject, viewChild
 } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,7 +19,6 @@ import { QuizService } from '@shared/services/data/quiz.service';
   standalone: true,
   imports: [
     NgOptimizedImage,
-    RouterModule,
     MatCardModule,
     MatIconModule,
     MatTooltipModule,
@@ -34,7 +33,8 @@ export class CodelabQuizHeaderComponent {
   private readonly metadataApi = inject(TopicQuizMetadataService);
   private readonly quizService = inject(QuizService);
   private readonly dialog = inject(MatDialog);
-  private readonly logoLink = viewChild.required<ElementRef<HTMLAnchorElement>>(
+  private readonly router = inject(Router);
+  private readonly logoLink = viewChild.required<ElementRef<HTMLButtonElement>>(
     'quizLogo'
   );
 
@@ -50,8 +50,17 @@ export class CodelabQuizHeaderComponent {
     return { milestone: this.metadataApi.milestoneFor(quizId) };
   });
 
-  focusLogo(): void {
-    this.logoLink().nativeElement.focus();
+  // Moves focus to the logo button. Returns whether the button really holds focus afterwards, so the caller can tell a
+  // successful arrival from a failed attempt instead of assuming success.
+  focusLogo(): boolean {
+    const logo = this.logoLink().nativeElement;
+    logo.focus();
+    return logo.ownerDocument.activeElement === logo;
+  }
+
+  // The logo is a native button that returns to Quiz Selection.
+  goToSelection(): void {
+    void this.router.navigate(['/select']);
   }
 
   // Open the presentational keyboard-shortcuts dialog. ariaLabelledBy /

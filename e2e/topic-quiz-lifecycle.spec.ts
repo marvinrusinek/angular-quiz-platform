@@ -110,7 +110,7 @@ async function backToSelectionInSpa(page: Page): Promise<void> {
   const fromResults = page.locator('[title="select quiz"]').first();
   const link = (await fromResults.count()) > 0
     ? fromResults
-    : page.locator('mat-card-header a[href="/select"]').first();
+    : page.locator('mat-card-header button.quiz-header__logo').first();
 
   await link.waitFor({ state: 'visible', timeout: 30_000 });
   await link.scrollIntoViewIfNeeded();

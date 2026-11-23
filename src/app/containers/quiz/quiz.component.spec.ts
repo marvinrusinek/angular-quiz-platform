@@ -31,7 +31,7 @@ import { CodelabQuizHeaderComponent } from './quiz-header/quiz-header.component'
 @Component({
   selector: 'codelab-quiz-header',
   standalone: true,
-  template: '<a href="/select">Angular Quiz Platform</a>',
+  template: '<button type="button" class="quiz-header__logo">Angular Quiz Platform</button>',
   providers: [{
     provide: CodelabQuizHeaderComponent,
     useExisting: forwardRef(() => QuizHeaderFocusStub)
@@ -40,8 +40,19 @@ import { CodelabQuizHeaderComponent } from './quiz-header/quiz-header.component'
 class QuizHeaderFocusStub {
   private readonly element = inject(ElementRef<HTMLElement>);
 
-  focusLogo(): void {
-    this.element.nativeElement.querySelector('a')!.focus();
+  // Test hook: how many upcoming focus attempts should fail, as if the header were not available yet.
+  static failFocusAttempts = 0;
+  static focusAttempts = 0;
+
+  focusLogo(): boolean {
+    QuizHeaderFocusStub.focusAttempts++;
+    if (QuizHeaderFocusStub.failFocusAttempts > 0) {
+      QuizHeaderFocusStub.failFocusAttempts--;
+      return false;
+    }
+    const logo = this.element.nativeElement.querySelector('button.quiz-header__logo') as HTMLButtonElement;
+    logo.focus();
+    return document.activeElement === logo;
   }
 }
 
@@ -295,11 +306,50 @@ afterEach(() => {
 });
 
 describe('QuizComponent — entry and question focus', () => {
-  it('starts at the existing logo link on initial quiz entry', () => {
+  it('starts at the existing logo button on initial quiz entry', () => {
     TestBed.tick();
     expect(document.activeElement).toBe(
-      host().querySelector('codelab-quiz-header a')
+      host().querySelector('codelab-quiz-header button.quiz-header__logo')
     );
+  });
+
+  it('does not mark an arrival handled when the logo could not be focused, and succeeds on the next run without reclaiming focus after', () => {
+    TestBed.tick(); // initial entry (question 1) is handled normally
+    component.totalQuestions.set(2);
+    const logo = host().querySelector('codelab-quiz-header button.quiz-header__logo') as HTMLElement;
+    const answer = document.createElement('button');
+    host().appendChild(answer);
+    answer.focus();
+
+    try {
+      // Arrive at question 2 while the header cannot take focus (as if it were not available yet).
+      QuizHeaderFocusStub.failFocusAttempts = 1;
+      QuizHeaderFocusStub.focusAttempts = 0;
+      component.currentQuestionIndex.set(1);
+      fixture.detectChanges();
+      TestBed.tick();
+      // the first attempt failed: focus did not move and the arrival was NOT consumed
+      expect(QuizHeaderFocusStub.focusAttempts).toBe(1);
+      expect(document.activeElement).toBe(answer);
+
+      // the next change of the effect's inputs (a payload refresh) retries and now succeeds
+      component.combinedQuestionData.update(payload => (payload ? { ...payload } : payload));
+      fixture.detectChanges();
+      TestBed.tick();
+      expect(QuizHeaderFocusStub.focusAttempts).toBe(2);
+      expect(document.activeElement).toBe(logo);
+
+      // once handled, answer / feedback / timer updates never reclaim focus
+      answer.focus();
+      component.combinedQuestionData.update(payload => (payload ? { ...payload } : payload));
+      timer.elapsedTimeSig.set(1);
+      fixture.detectChanges();
+      TestBed.tick();
+      expect(QuizHeaderFocusStub.focusAttempts).toBe(2);
+      expect(document.activeElement).toBe(answer);
+    } finally {
+      QuizHeaderFocusStub.failFocusAttempts = 0;
+    }
   });
 
   it('does not reclaim focus after a payload refresh or timer update', () => {
@@ -323,7 +373,7 @@ describe('QuizComponent — entry and question focus', () => {
       'announceQuestionArrival'
     ).mockImplementation(() => undefined);
     TestBed.tick();
-    const logo = host().querySelector('codelab-quiz-header a') as HTMLElement;
+    const logo = host().querySelector('codelab-quiz-header button.quiz-header__logo') as HTMLElement;
     const answer = document.createElement('button');
     host().appendChild(answer);
     component.totalQuestions.set(2);

@@ -40,6 +40,7 @@ import { removeSessionKey } from '@shared/utils/session-storage';
 import { QUESTION_ROUTE_REGEX } from '@shared/constants/route-patterns';
 import { isOptionCorrect } from '@shared/utils/is-option-correct';
 import { reportError, swallow } from '@shared/utils/error-logging';
+import { isInteractiveKeyTarget } from '@shared/utils/interactive-key-target';
 import { norm } from '@shared/utils/text-norm';
 import { resolveIsMultiAnswer } from '@shared/utils/question-type-authority';
 
@@ -946,6 +947,10 @@ export class QuizSetupService {
     switch (event.key) {
       case 'ArrowRight':
       case 'Enter': {
+        // Enter belongs to a focused control (a button or link is activated, a field is edited): the page-level shortcut only
+        // applies when focus is on non-interactive content. Next and Show Results are buttons themselves, so they are
+        // activated natively exactly once.
+        if (event.key === 'Enter' && isInteractiveKeyTarget(event.target)) return;
         if (host.shouldShowNextButton()) {
           // Advance only when the CURRENT question is genuinely answered — OR
           // its timer has expired (auto-advance is allowed even if unanswered).

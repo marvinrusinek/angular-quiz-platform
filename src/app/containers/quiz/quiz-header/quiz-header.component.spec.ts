@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTooltip } from '@angular/material/tooltip';
 import { By } from '@angular/platform-browser';
@@ -67,12 +67,12 @@ describe('CodelabQuizHeaderComponent', () => {
     expect(fixture.componentInstance.currentQuiz()?.milestone).toBe('TypeScript');
   });
 
-  it('focuses the existing logo link without adding another focus stop', () => {
+  it('focuses the existing logo button without adding another focus stop', () => {
     configure('rxjs');
     const fixture = TestBed.createComponent(CodelabQuizHeaderComponent);
     fixture.detectChanges();
     fixture.componentInstance.focusLogo();
-    const link = fixture.nativeElement.querySelector('a');
+    const link = fixture.nativeElement.querySelector('button.quiz-header__logo');
     expect(document.activeElement).toBe(link);
     expect(link.querySelector('img')?.getAttribute('alt'))
       .toBe('Angular Quiz Platform');
@@ -151,8 +151,8 @@ describe('CodelabQuizHeaderComponent', () => {
     }
   });
 
-  // The logo link carries its own class (it owns the logo's spacing) and still wraps the unchanged image and route.
-  it('keeps the logo link, route, image, alt text and dimensions, with the link marked quiz-header__logo', () => {
+  // The logo is a native button carrying its own class (it owns the logo's spacing); it wraps the unchanged image and returns to /select.
+  it('keeps the logo button, route, image, alt text and dimensions, with the button marked quiz-header__logo', () => {
     configure('typescript');
     metadataApi.questionCountByQuiz.mockReturnValue(new Map([['typescript', 5]]));
     metadataApi.milestoneFor.mockReturnValue('TypeScript');
@@ -160,16 +160,25 @@ describe('CodelabQuizHeaderComponent', () => {
     const fixture = TestBed.createComponent(CodelabQuizHeaderComponent);
     fixture.detectChanges();
 
-    const link = (fixture.nativeElement as HTMLElement).querySelector('mat-card-header > a') as HTMLAnchorElement;
+    const link = (fixture.nativeElement as HTMLElement).querySelector('mat-card-header > button') as HTMLButtonElement;
     expect(link.classList.contains('quiz-header__logo')).toBe(true);
-    expect(link.getAttribute('href')).toBe('/select');
+    expect(link.getAttribute('type')).toBe('button');
+    expect(link.hasAttribute('href')).toBe(false);
+    // One named button: the name is on the button, and the (still present) image is hidden so it is not a second graphic stop.
+    expect(link.getAttribute('aria-label')).toBe('Angular Quiz Platform');
+    expect(link.hasAttribute('role')).toBe(false);
+    expect(link.hasAttribute('aria-hidden')).toBe(false);
+    expect((link.querySelector('img') as HTMLImageElement).getAttribute('aria-hidden')).toBe('true');
+    const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    link.click();
+    expect(navigate).toHaveBeenCalledWith(['/select']);
     const img = link.querySelector('img') as HTMLImageElement;
     expect(img.classList.contains('header-image')).toBe(true);
     expect(img.getAttribute('alt')).toBe('Angular Quiz Platform');
     expect(img.getAttribute('width')).toBe('495');
     expect(img.getAttribute('height')).toBe('144');
     expect(img.getAttribute('src') ?? '').toContain('angular-quiz-platform-logo.webp');
-    expect(link.hasAttribute('aria-label') || link.hasAttribute('role') || link.hasAttribute('tabindex')).toBe(false);
+    expect(link.hasAttribute('role') || link.hasAttribute('tabindex')).toBe(false);
   });
 
   it('renders nothing (null) on a cold quiz — metadata not yet loaded', () => {

@@ -10,7 +10,7 @@ import { quizData, startQuizViaUi, advanceToQuestion, HEADING, NEXT_BTN, PREV_BT
  */
 
 const doohickeys = quizData.find((q: any) => (q.quizId || q.id) === 'fixture-doohickeys');
-const LOGO = 'codelab-quiz-header a:has(img.header-image)';
+const LOGO = 'codelab-quiz-header button.quiz-header__logo';
 const HEADING_H3 = `${HEADING}[tabindex="-1"]`;
 
 async function headingState(page: import('@playwright/test').Page) {

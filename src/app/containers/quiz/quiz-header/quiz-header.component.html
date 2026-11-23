@@ -1,22 +1,26 @@
 <mat-card-header>
-  <a
+  <button
     #quizLogo
+    type="button"
     class="quiz-header__logo"
-    [routerLink]="['/select']"
+    (click)="goToSelection()"
     matTooltip="Back to Quiz Selection"
     i18n-matTooltip
     matTooltipPosition="left"
+    aria-label="Angular Quiz Platform"
+    i18n-aria-label
   >
     <img
       mat-card-avatar
       class="header-image"
       loading="lazy"
+      aria-hidden="true"
       alt="Angular Quiz Platform"
       ngSrc="assets/images/angular-quiz-platform-logo.webp"
       width="495"
       height="144"
     />
-  </a>
+  </button>
 
   @if (currentQuiz(); as currentQuiz) {
     <div class="header-titles">

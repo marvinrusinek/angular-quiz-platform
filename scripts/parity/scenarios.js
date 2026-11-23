@@ -136,7 +136,10 @@ async function runTopicQuizScenario({ nodeBase, springBase }) {
   const nodeOwnCheck = await checkAnswer(nodeBase, TOPIC_QUIZ_ID, nodeQuestionReceipt, TOPIC_QUIZ_QUESTION_TEXT, [TOPIC_QUIZ_CORRECT_OPTION]);
   const springOwnCheck = acceptedBySpring; // already Spring checking the (Node-issued, but content-identical) receipt above
   mismatches.push(
-    ...compareStatusAndBody({ scenario, endpoint: 'POST /check (correct answer)', expectedNodeRes: nodeOwnCheck, actualSpringRes: springOwnCheck }),
+    // `finalizationProof` is a Node-only addition (the signed proof of a verified attempt that gates the post-attempt review:
+    // POST /attempts/finalize and POST /review). Spring does not implement those routes yet, so the field is excluded from the
+    // body diff; every other field must still match exactly.
+    ...compareStatusAndBody({ scenario, endpoint: 'POST /check (correct answer)', expectedNodeRes: nodeOwnCheck, actualSpringRes: springOwnCheck, ignorePaths: ['$.finalizationProof'] }),
     // Independent: a validly-issued receipt with a correct answer MUST
     // resolve (200) on each side.
     ...assertRuntimeStatus({
@@ -192,7 +195,8 @@ async function runTopicQuizScenario({ nodeBase, springBase }) {
   const springWrongReceipt = await issueQuestionReceipt(springBase, TOPIC_QUIZ_ID, await issueAttemptReceipt(springBase, TOPIC_QUIZ_ID), TOPIC_QUIZ_QUESTION_TEXT);
   const springWrong = await checkAnswer(springBase, TOPIC_QUIZ_ID, springWrongReceipt, TOPIC_QUIZ_QUESTION_TEXT, [TOPIC_QUIZ_WRONG_OPTION]);
   mismatches.push(
-    ...compareStatusAndBody({ scenario, endpoint: 'POST /check (wrong answer)', expectedNodeRes: nodeWrong, actualSpringRes: springWrong }),
+    // Same Node-only `finalizationProof` exclusion as above.
+    ...compareStatusAndBody({ scenario, endpoint: 'POST /check (wrong answer)', expectedNodeRes: nodeWrong, actualSpringRes: springWrong, ignorePaths: ['$.finalizationProof'] }),
     // Independent: a wrong-but-authorized answer is still a resolved check
     // (200, correct:false) on each side, never an error.
     ...assertRuntimeStatus({

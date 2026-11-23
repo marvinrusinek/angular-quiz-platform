@@ -104,6 +104,8 @@ app-quiz-resources {
       // The visible text is hidden from assistive technology; the row's ONE exposed phrase is fitted to this button's box.
       .resource-visible {
         display: contents;
+        // The visible text keeps the row's weight (600), exactly as the former <strong> did via font-weight: inherit.
+        font-weight: inherit;
       }
 
       &:hover {
@@ -111,5 +113,4 @@ app-quiz-resources {
       }
     }
   }
-
 }

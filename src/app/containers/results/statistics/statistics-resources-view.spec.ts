@@ -73,7 +73,7 @@ const request = () => http.expectOne(`${BASE}/quizzes/${QUIZ_ID}/resources`);
 const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
 // The resource rows are native buttons (not links) that open the destination in a new tab.
 const links = (): HTMLButtonElement[] => Array.from(el().querySelectorAll<HTMLButtonElement>('.resources-view .resources-rows button'));
-/** The VISIBLE text of a row link (its aria-hidden <strong>), not the one exposed text phrase. */
+/** The VISIBLE text of a row (its aria-hidden .resource-visible span), not the one exposed text phrase. */
 const visibleText = (a: HTMLElement): string => a.querySelector('[data-intro-visible]')!.textContent!.replace(/\s+/g, ' ').trim();
 /** The ONE exposed phrase of a row link. */
 const exposedText = (a: HTMLElement): string => a.querySelector('.resource-exposed')!.textContent!;
@@ -123,9 +123,9 @@ describe('Learning Resources view: always-visible list', () => {
     }
   });
 
-  // Each row link IS the whole visual row. Its visible text (ONE text node, "[Title] — [Source]", inside a <strong>) is
-  // aria-hidden, and ONE transparent text node "[Title] [Source]" is exposed and fitted to the link's own box. There is
-  // no aria-label or aria-labelledby competing with it.
+  // Each row link IS the whole visual row. Its visible text (ONE text node, "[Title] — [Source]", directly in the aria-hidden
+  // .resource-visible span, which also carries the font reference marker) is hidden, and ONE transparent text node
+  // "[Title] [Source]" is exposed and fitted to the link's own box. There is no aria-label or aria-labelledby competing with it.
   it('each row is ONE native link with ONE exposed "[Title] [Source]" phrase and its visible text hidden', () => {
     expect(links().map((a) => visibleText(a))).toEqual(['Router guide — Angular', 'Router API — Angular']);
     expect(links().map((a) => exposedText(a))).toEqual(['Router guide Angular', 'Router API Angular']);
@@ -135,11 +135,14 @@ describe('Learning Resources view: always-visible list', () => {
       expect(a.hasAttribute('aria-hidden')).toBe(false); // the link itself stays exposed
       const visible = a.querySelector(':scope > [data-intro-visible]') as HTMLElement;
       expect(visible.getAttribute('aria-hidden')).toBe('true');
-      const strong = visible.firstElementChild as HTMLElement;
-      expect(strong.hasAttribute('data-intro-font-ref')).toBe(true);
-      expect(strong.childNodes).toHaveLength(1);
-      expect(strong.firstChild!.nodeType).toBe(3);
-      expect(strong.querySelector('*')).toBeNull();
+      // the font reference marker is on the visible span itself (no <strong> wrapper), and it is the ONLY marker in the row
+      expect(visible.classList.contains('resource-visible')).toBe(true);
+      expect(visible.hasAttribute('data-intro-font-ref')).toBe(true);
+      expect(a.querySelectorAll('[data-intro-font-ref]')).toHaveLength(1);
+      expect(a.querySelectorAll('strong')).toHaveLength(0);
+      expect(visible.childNodes).toHaveLength(1);
+      expect(visible.firstChild!.nodeType).toBe(3);
+      expect(visible.querySelector('*')).toBeNull();
       const exposed = a.querySelector(':scope > .resource-exposed') as HTMLElement;
       expect(exposed.closest('[aria-hidden="true"]')).toBeNull();
       expect(exposed.childNodes).toHaveLength(1);
@@ -165,7 +168,8 @@ describe('Learning Resources view: always-visible list', () => {
     const a = (c.nativeElement as HTMLElement).querySelector('button')!;
     expect(visibleText(a)).toBe('Docs');
     expect(exposedText(a)).toBe('Docs'); // no trailing host
-    expect(a.querySelectorAll('strong')).toHaveLength(1);
+    expect(a.querySelectorAll('strong')).toHaveLength(0);
+    expect(a.querySelectorAll('[data-intro-font-ref]')).toHaveLength(1);
   });
 
   it('never opens a non-http(s) destination', () => {

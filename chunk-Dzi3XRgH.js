@@ -1,0 +1,1 @@
+import"./chunk-BcR-gcGq.js";import{h as R}from"./main-MDTHSWIW.js";export{R as ScrollDownIndicatorComponent};

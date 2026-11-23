@@ -7,7 +7,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { NEVER, Observable, of, Subject } from 'rxjs';
+import { NEVER, Observable, of, Subject, throwError } from 'rxjs';
 
 import { QuizService } from '@shared/services/data/quiz.service';
 import { QuizProgressionService } from '@shared/services/flow/quiz-progression.service';
@@ -19,6 +19,7 @@ import { QuestionVerdictService } from '@shared/services/features/verdict/questi
 import type { QuestionCheckResult } from '@shared/services/features/verdict/question-verdict.types';
 import { TOPIC_QUIZ_VERDICT_ADAPTER } from '@shared/services/features/verdict/verdict-adapter';
 import { NextButtonStateService } from '@shared/services/state/next-button-state.service';
+import { TopicQuizAttemptService } from '@shared/services/features/verdict/topic-quiz-attempt.service';
 import { SelectedOptionService } from '@shared/services/state/selectedoption.service';
 import { TimerService } from '@shared/services/features/timer/timer.service';
 import { CURRENT_CHECK_FAILED_MESSAGE } from '@shared/utils/verdict-notice';
@@ -1333,5 +1334,44 @@ describe('QuizComponent — Results after jumping ahead by URL', () => {
     expect(phase()).toBe('idle');
     expect(verdicts.hasBlockingVerdicts(QUIZ)).toBe(false);
     expect(resultsButton()).toBeNull();
+  });
+});
+
+describe('QuizComponent — Show Results finalizes the attempt through the server', () => {
+  const lastOfTwo = (): void => {
+    component.totalQuestions.set(2);
+    component.currentQuestionIndex.set(1); // the last question, earlier one skipped
+    fixture.detectChanges();
+  };
+  const finalize = () => jest.spyOn(TestBed.inject(TopicQuizAttemptService), 'finalizeAttempt').mockReturnValue(of('final'));
+
+  it('finalizes exactly once when Show Results is eligible and used, even with an earlier question skipped', () => {
+    const spy = finalize();
+    lastOfTwo();
+    pick(['map'], MULTI_QUESTION);
+    resolve(checks.length - 1, RESOLVED_CORRECT_MULTI);
+    component.advanceToResults();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(QUIZ);
+    expect(component.navigatingToResults()).toBe(true);
+  });
+
+  it('does not finalize while Results is not eligible (nothing verified on the last question)', () => {
+    const spy = finalize();
+    lastOfTwo();
+    component.advanceToResults();
+    expect(spy).not.toHaveBeenCalled();
+    expect(component.navigatingToResults()).toBe(false);
+  });
+
+  it('a failed finalization never blocks or changes Results', () => {
+    jest.spyOn(TestBed.inject(TopicQuizAttemptService), 'finalizeAttempt').mockReturnValue(
+      throwError(() => new Error('refused'))
+    );
+    lastOfTwo();
+    pick(['map'], MULTI_QUESTION);
+    resolve(checks.length - 1, RESOLVED_CORRECT_MULTI);
+    expect(() => component.advanceToResults()).not.toThrow();
+    expect(component.navigatingToResults()).toBe(true);
   });
 });

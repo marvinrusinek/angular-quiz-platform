@@ -1,5 +1,5 @@
 import { Service, inject } from '@angular/core';
-import { EMPTY, Observable, defer, from, throwError, timer } from 'rxjs';
+import { EMPTY, Observable, defer, from, merge, throwError, timer } from 'rxjs';
 import { catchError, map, mergeMap, retry } from 'rxjs/operators';
 
 import { QuizQuestion, ScoreAnalysisItem } from '@shared/models';
@@ -62,8 +62,44 @@ export class ReviewRevealService {
     return out.sort((a, b) => a.deadlineMs - b.deadlineMs);
   }
 
+  /**
+   * Questions still lacking a reveal: skipped, or started but never answered or expired. Their answers come from the
+   * post-attempt review, which the server authorizes only for an attempt with a verified answer. (A question that holds a
+   * receipt is also covered by its own per-question reveal once its deadline passes; the same value arrives either way.)
+   */
+  skipped(quizId: string, analysis: readonly ScoreAnalysisItem[]): Set<string> {
+    const keys = new Set<string>();
+    for (const item of analysis) {
+      const text = item.questionText ?? '';
+      if (!text || hasReveal(item)) continue;
+      keys.add(norm(text)); // started-but-unanswered questions too: once the attempt is finalized the review covers them all
+    }
+    return keys;
+  }
+
+  /** The post-attempt review for the skipped questions: one request, display only, never an error. */
+  private reviewSkipped(quizId: string, analysis: readonly ScoreAnalysisItem[]): Observable<ReviewReveal> {
+    const wanted = this.skipped(quizId, analysis);
+    if (wanted.size === 0 || !this.attempts.canReview(quizId)) return EMPTY;
+    return defer(() => this.attempts.review(quizId)).pipe(
+      mergeMap((review) =>
+        from(review.questions.filter((q) => wanted.has(norm(q.questionText))))
+      ),
+      map((q) => ({
+        questionText: q.questionText,
+        correctOptionTexts: [...q.correctOptionTexts],
+        explanation: q.explanation
+      })),
+      catchError(() => EMPTY)
+    );
+  }
+
   /** Emits one reveal per question as it becomes available; never errors. */
   reveals(quizId: string, analysis: readonly ScoreAnalysisItem[]): Observable<ReviewReveal> {
+    return merge(this.revealsWithReceipts(quizId, analysis), this.reviewSkipped(quizId, analysis));
+  }
+
+  private revealsWithReceipts(quizId: string, analysis: readonly ScoreAnalysisItem[]): Observable<ReviewReveal> {
     return from(this.pending(quizId, analysis)).pipe(
       mergeMap(
         (p) =>

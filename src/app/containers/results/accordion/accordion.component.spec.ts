@@ -578,7 +578,10 @@ describe('AccordionComponent — detail rows are not a list (Variant D)', () => 
     const row = answerRow(f, 2);
     expect(norm2(row)).toContain('(no answer provided)');
     expect(row.querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
-    expect(row.querySelector('[role="img"] i.unanswered')!.getAttribute('aria-hidden')).toBe('true');
+    // nothing follows "(no answer provided)": no icon and no dash of any kind.
+    expect(row.querySelector('i')).toBeNull();
+    expect(norm2(row)).toBe('Your Answers: (no answer provided)');
+    expect(row.textContent ?? '').not.toMatch(/[—–-]s*$|remove|clear|done/);
     expect(row.querySelector('i.incorrect')).toBeNull(); // not shown as an incorrect answer
   });
 
@@ -1429,6 +1432,37 @@ describe('AccordionComponent — reveal by question state', () => {
     ]);
   });
 
+  it('a SKIPPED question shows the server-authorized review: correct answers and Formatted Explanation, option numbers from the displayed order', async () => {
+    // The review delivers texts only; the numbers come from how this question's options are DISPLAYED.
+    const reviewed = { ...analysisItem(0, 'why-0'), correctOptionTexts: ['B0'] } as ScoreAnalysisItem;
+    const f = await mount([question(0, null)], [reviewed], new Map(), [0]);
+    expect(rows(f, 0)).toEqual([
+      'Your Answers: (no answer provided)', // no dash
+      'Correct Answer: Option 2 — B0',
+      'Explanation: Option 2 was correct because why-0.',
+      'Elapsed Time: 0 seconds'
+    ]);
+  });
+
+  it('a skipped multiple-answer question lists every authorized correct option in displayed order', async () => {
+    const reviewed = { ...analysisItem(0, 'because'), correctOptionTexts: ['C0', 'A0'] } as ScoreAnalysisItem;
+    const f = await mount([question(0, null)], [reviewed], new Map(), [0]);
+    expect(rows(f, 0)[1]).toBe('Correct Answers: Options 1 and 3 — A0, C0');
+    expect(rows(f, 0)[2]).toBe('Explanation: Options 1 and 3 were correct because because.');
+  });
+
+  it('reviewing a skipped question does not answer, credit or reclassify it: still Unanswered, zero correct', async () => {
+    const reviewed = { ...analysisItem(0, 'why-0'), correctOptionTexts: ['B0'] } as ScoreAnalysisItem;
+    // (the options carry a local flag only so the display-only fallback has something to compare; nothing was selected)
+    const f = await mount([question(0, [2])], [reviewed], new Map(), [0]);
+    const comp = f.componentInstance;
+    expect(comp.unansweredCount()).toBe(1);
+    expect(comp.correctCount()).toBe(0);
+    expect(comp.incorrectCount()).toBe(0);
+    expect(aria(f, 0)[0]).toBe('Your Answers: (no answer provided), Unanswered');
+    expect(f.nativeElement.querySelector('#qr-header-0 .timed-out-badge')).toBeNull(); // never marked expired
+  });
+
   it('an unanswered question never shows another question\'s answer or text', async () => {
     const f = await mount(
       [question(0, null), question(1, [2]), question(2, [3])],
@@ -1577,7 +1611,7 @@ describe('AccordionComponent — Unanswered is distinct from Incorrect (consiste
     skipped.fixture.detectChanges();
     const skippedRow = skipped.fixture.nativeElement.querySelector('#qr-body-0 [role="img"]') as HTMLElement;
     expect(skippedRow.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
-    expect(skippedRow.querySelector('i.unanswered')).not.toBeNull();
+    expect(skippedRow.querySelector('i')).toBeNull(); // no icon and no dash after the text
 
     const attempted = await renderWith([[2]]);
     (attempted.fixture.nativeElement.querySelectorAll('.qr-header')[0] as HTMLElement).click();

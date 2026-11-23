@@ -401,3 +401,207 @@ describe('mergeReviewReveals', () => {
     expect(out[1]).toMatchObject({ questionText: 'Q0', explanation: 'for-q0' });
   });
 });
+
+/**
+ * POST-ATTEMPT REVIEW of skipped questions.
+ *
+ * A question the player never started has no receipt, so the per-question reveal cannot reach it. Once the attempt has a
+ * server-verified answer, the server's `/review` releases every question's authorized answers; this service takes ONLY the
+ * ones the review is missing, for display. It writes no verdict, expires nothing, and credits nothing.
+ */
+describe('ReviewRevealService — skipped questions via the post-attempt review', () => {
+  const reviewUrl = `${BASE}/quizzes/${QUIZ}/review`;
+  const reviewBody = (qs: { t: string; c: string[]; e: string }[]) => ({
+    quizId: QUIZ,
+    questions: qs.map((q) => ({ questionText: q.t, correctOptionTexts: q.c, explanation: q.e }))
+  });
+  const run = (analysis: ScoreAnalysisItem[]): ReviewReveal[] => {
+    const out: ReviewReveal[] = [];
+    service.reveals(QUIZ, analysis).subscribe((r) => out.push(r));
+    return out;
+  };
+  const credentialsKey = `topicQuizReviewCredentials:v1:${QUIZ}`;
+  /** The attempt is FINALIZED: a proof of a verified answer AND the server's finalization. */
+  const giveProof = (): void =>
+    sessionStorage.setItem(
+      credentialsKey,
+      JSON.stringify({ attemptReceipt: 'attempt-1', proof: 'proof-1', finalization: 'final-1' })
+    );
+  /** Only a verified answer so far: a /check proof, NOT yet finalized. */
+  const giveProofOnly = (): void =>
+    sessionStorage.setItem(credentialsKey, JSON.stringify({ attemptReceipt: 'attempt-1', proof: 'proof-1' }));
+
+  beforeEach(() => sessionStorage.clear());
+
+  it('asks the review once, with the attempt receipt and the FINALIZATION, and returns only the skipped questions', () => {
+    giveProof();
+    const out = run([item(0, 'Q0'), item(1, 'Q1'), item(2, 'Q2', { explanation: 'already earned' })]);
+    const req = http.expectOne(reviewUrl);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('X-Attempt-Receipt')).toBe('attempt-1');
+    expect(req.request.headers.get('X-Attempt-Finalization')).toBe('final-1');
+    expect(req.request.headers.has('X-Finalization-Proof')).toBe(false); // a /check proof is never what authorizes the review
+    req.flush(reviewBody([
+      { t: 'Q0', c: ['A'], e: 'why 0' },
+      { t: 'Q1', c: ['B', 'C'], e: 'why 1' },
+      { t: 'Q2', c: ['D'], e: 'why 2' } // already covered: must not be returned
+    ]));
+    expect(out.map((r) => r.questionText)).toEqual(['Q0', 'Q1']);
+    expect(out[1]).toEqual({ questionText: 'Q1', correctOptionTexts: ['B', 'C'], explanation: 'why 1' });
+  });
+
+  it('requests nothing without a proof (no attempt has been verified), and never creates a receipt', () => {
+    expect(run([item(0, 'Q0')])).toEqual([]);
+    http.expectNone(() => true);
+    expect(attempts.hasStarted(QUIZ, 'Q0')).toBe(false);
+  });
+
+  it('requests nothing before the attempt is FINALIZED: a verified answer alone never asks for the review', () => {
+    giveProofOnly();
+    expect(attempts.hasFinalizationProof(QUIZ)).toBe(true);
+    expect(attempts.canReview(QUIZ)).toBe(false);
+    expect(run([item(0, 'Q0')])).toEqual([]);
+    http.expectNone(() => true);
+  });
+
+  it('review() never finalizes by itself', () => {
+    giveProofOnly();
+    let error: unknown;
+    attempts.review(QUIZ).subscribe({ error: (e) => (error = e) });
+    expect(error).toBeDefined();
+    http.expectNone(() => true);
+  });
+
+  it('Show Results finalizes through the server, then the review proceeds with the finalization it returned', () => {
+    giveProofOnly();
+    attempts.finalizeAttempt(QUIZ).subscribe();
+    const fin = http.expectOne(`${BASE}/quizzes/${QUIZ}/attempts/finalize`);
+    expect(fin.request.method).toBe('POST');
+    expect(fin.request.headers.get('X-Attempt-Receipt')).toBe('attempt-1');
+    expect(fin.request.headers.get('X-Finalization-Proof')).toBe('proof-1');
+
+    // the review is wanted as soon as finalization is on the way, and WAITS for it
+    expect(attempts.canReview(QUIZ)).toBe(true);
+    const out = run([item(0, 'Q0')]);
+    http.expectNone(reviewUrl);
+    fin.flush({ quizId: QUIZ, finalizationReceipt: 'final-9' });
+
+    const req = http.expectOne(reviewUrl);
+    expect(req.request.headers.get('X-Attempt-Finalization')).toBe('final-9');
+    req.flush(reviewBody([{ t: 'Q0', c: ['A'], e: 'why' }]));
+    expect(out.map((r) => r.questionText)).toEqual(['Q0']);
+    // stored, so a reload can still review
+    expect(JSON.parse(sessionStorage.getItem(credentialsKey)!).finalization).toBe('final-9');
+  });
+
+  it('finalizing is idempotent, needs a proof, and a refusal leaves the review unavailable', () => {
+    let error: unknown;
+    attempts.finalizeAttempt(QUIZ).subscribe({ error: (e) => (error = e) }); // no proof on record
+    expect(error).toBeDefined();
+    http.expectNone(() => true);
+
+    giveProofOnly();
+    attempts.finalizeAttempt(QUIZ).subscribe();
+    attempts.finalizeAttempt(QUIZ).subscribe();
+    const reqs = http.match(`${BASE}/quizzes/${QUIZ}/attempts/finalize`);
+    expect(reqs).toHaveLength(1); // one request for both calls
+    reqs[0]!.flush({ error: { code: 'UNAUTHORIZED' } }, { status: 401, statusText: 'Unauthorized' });
+    expect(attempts.canReview(QUIZ)).toBe(false);
+    expect(run([item(0, 'Q0')])).toEqual([]);
+  });
+
+  it('also covers a question that was started but never answered (its per-question reveal would only arrive after its deadline)', () => {
+    giveProof();
+    issueReceipt('Q0'); // started, unanswered
+    const out = run([item(0, 'Q0'), item(1, 'Q1')]);
+    http.expectOne(reviewUrl).flush(reviewBody([
+      { t: 'Q0', c: ['A'], e: 'why 0' },
+      { t: 'Q1', c: ['B'], e: 'why 1' }
+    ]));
+    expect(out.map((r) => r.questionText).sort()).toEqual(['Q0', 'Q1']);
+  });
+
+  it('a refused or failed review yields nothing and never an error', () => {
+    giveProof();
+    let errored = false;
+    const out: ReviewReveal[] = [];
+    service.reveals(QUIZ, [item(0, 'Q0')]).subscribe({ next: (r) => out.push(r), error: () => (errored = true) });
+    http.expectOne(reviewUrl).flush({ error: { code: 'UNAUTHORIZED' } }, { status: 401, statusText: 'Unauthorized' });
+    expect(out).toEqual([]);
+    expect(errored).toBe(false);
+  });
+
+  it('ignores a malformed review body', () => {
+    giveProof();
+    const out = run([item(0, 'Q0')]);
+    http.expectOne(reviewUrl).flush({ questions: [{ questionText: 'Q0' }] });
+    expect(out).toEqual([]);
+  });
+
+  it('what it returns is display data only: merged onto the analysis it leaves wasCorrect false and adds no selection', () => {
+    giveProof();
+    const analysis = [item(0, 'Q0')];
+    const questions: QuizQuestion[] = [
+      { questionText: 'Q0', options: [{ optionId: 1, text: 'A' }, { optionId: 2, text: 'B' }] } as QuizQuestion
+    ];
+    const out = run(analysis);
+    http.expectOne(reviewUrl).flush(reviewBody([{ t: 'Q0', c: ['B'], e: 'why' }]));
+    const merged = mergeReviewReveals(analysis, new Map(out.map((r) => [r.questionText.toLowerCase(), r])), questions);
+    expect(merged[0]!.correctOptionTexts).toEqual(['B']);
+    expect(merged[0]!.explanation).toBe('why');
+    expect(merged[0]!.wasCorrect).toBe(false); // zero credit
+    expect(merged[0]!.selectedOptionIds).toEqual([]); // still unanswered
+  });
+});
+
+describe('finalization proof capture from /check', () => {
+  const key = `topicQuizReviewCredentials:v1:${QUIZ}`;
+  const adapter = (): ApiTopicQuizVerdictAdapter => TestBed.inject(ApiTopicQuizVerdictAdapter);
+
+  beforeEach(() => sessionStorage.clear());
+
+  it('stores the proof with the attempt receipt, and strips it from the result the app sees', () => {
+    let result: Record<string, unknown> | undefined;
+    adapter().check(QUIZ, 'Q0', ['A']).subscribe((r) => (result = r as unknown as Record<string, unknown>));
+    http.expectOne(url.attempts).flush({ attemptReceipt: 'attempt-9' });
+    http.expectOne(url.start).flush({ questionReceipt: 'rq', startedAt: 1, expiresAt: 30_001 });
+    http.expectOne(url.check).flush({
+      status: 'resolved', correct: false, correctOptionTexts: ['B'], explanation: 'why', finalizationProof: 'signed.proof'
+    });
+    expect(result).toEqual({ status: 'resolved', correct: false, correctOptionTexts: ['B'], explanation: 'why' });
+    expect(JSON.parse(sessionStorage.getItem(key)!)).toEqual({ attemptReceipt: 'attempt-9', proof: 'signed.proof' });
+    expect(attempts.hasFinalizationProof(QUIZ)).toBe(true);
+  });
+
+  it('a response without a proof (nothing established) stores nothing', () => {
+    adapter().check(QUIZ, 'Q0', []).subscribe();
+    http.expectOne(url.attempts).flush({ attemptReceipt: 'attempt-9' });
+    http.expectOne(url.start).flush({ questionReceipt: 'rq', startedAt: 1, expiresAt: 30_001 });
+    http.expectOne(url.check).flush({ status: 'incomplete', selectedVerdicts: [], remainingCorrectCount: 1 });
+    expect(sessionStorage.getItem(key)).toBeNull();
+    expect(attempts.hasFinalizationProof(QUIZ)).toBe(false);
+  });
+
+  it('an expiry reveal after the deadline also records the proof', () => {
+    issueReceipt('Q0');
+    jest.advanceTimersByTime(30_001);
+    attempts.revealIssued(QUIZ, 'Q0').subscribe();
+    http.expectOne(url.check).flush({ status: 'expired', correctOptionTexts: ['A'], explanation: 'why', finalizationProof: 'p-exp' });
+    expect(JSON.parse(sessionStorage.getItem(key)!)).toEqual({ attemptReceipt: 'attempt-1', proof: 'p-exp' });
+  });
+
+  it('leaving the attempt (restart or quiz switch) drops the proof, so a new attempt cannot review on the old one', () => {
+    sessionStorage.setItem(key, JSON.stringify({ attemptReceipt: 'a', proof: 'p' }));
+    attempts.startQuestion(QUIZ, 'Q0').subscribe(); // binds the service to this quiz
+    http.match(() => true);
+    attempts.clear();
+    expect(sessionStorage.getItem(key)).toBeNull();
+  });
+
+  it('review() refuses to call out without a proof on record', () => {
+    let error: unknown;
+    attempts.review(QUIZ).subscribe({ error: (e) => (error = e) });
+    expect(error).toBeDefined();
+    http.expectNone(() => true);
+  });
+});

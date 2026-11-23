@@ -47,6 +47,7 @@ import { QuizInitializationService } from '@shared/services/flow/quiz-initializa
 import { QuizNavigationService } from '@shared/services/flow/quiz-navigation.service';
 import { QuizPersistenceService } from '@shared/services/state/quiz-persistence.service';
 import { QuizProgressionService } from '@shared/services/flow/quiz-progression.service';
+import { TopicQuizAttemptService } from '@shared/services/features/verdict/topic-quiz-attempt.service';
 import { QuizResetService } from '@shared/services/flow/quiz-reset.service';
 import { QuizRouteService } from '@shared/services/flow/quiz-route.service';
 import { QuizService } from '@shared/services/data/quiz.service';
@@ -129,6 +130,7 @@ export class QuizComponent implements OnInit, AfterViewInit {
   private readonly quizNavigationService = inject(QuizNavigationService);
   private readonly quizPersistence = inject(QuizPersistenceService);
   private readonly progressionService = inject(QuizProgressionService);
+  private readonly topicQuizAttempts = inject(TopicQuizAttemptService);
   public readonly quizQuestionLoaderService = inject(QqcQuestionLoaderService);
   private readonly quizResetService = inject(QuizResetService);
   private readonly quizRouteService = inject(QuizRouteService);
@@ -912,6 +914,13 @@ export class QuizComponent implements OnInit, AfterViewInit {
     if (!this.resultsEligible()) return;
 
     this.navigatingToResults.set(true);
+
+    // Show Results FINALIZES the attempt through the server (skipped questions allowed). It does not wait: the Results page's
+    // review waits for it. A refusal or failure just means the review stays unavailable; it never blocks or changes Results.
+    const finalizeQuizId = this.quizId() || this.quizService.quizId || '';
+    if (finalizeQuizId) {
+      this.topicQuizAttempts.finalizeAttempt(finalizeQuizId).subscribe({ error: () => undefined });
+    }
 
     // Record elapsed time and stop timer (no navigation from service)
     this.quizNavigationService.recordElapsedAndGoToResults(this.currentQuestionIndex());

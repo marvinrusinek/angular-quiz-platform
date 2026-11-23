@@ -1,7 +1,7 @@
 import { Service, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError, map, shareReplay, switchMap } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
+import { catchError, map, shareReplay, switchMap, tap } from 'rxjs/operators';
 
 import {
   QuestionVerdictError,
@@ -124,6 +124,9 @@ export class TopicQuizAttemptService {
         .post<{ attemptReceipt: string }>(`${this.baseUrl(quizId)}/attempts`, {})
         .pipe(
           map((body) => body.attemptReceipt),
+          tap((receipt) => {
+            if (this.quizId === quizId) this.attemptReceiptValue = receipt;
+          }),
           catchError(() => throwError(() => new QuestionVerdictError('Invalid submission'))),
           shareReplay({ bufferSize: 1, refCount: false })
         );
@@ -243,6 +246,7 @@ export class TopicQuizAttemptService {
           ) {
             throw new QuestionVerdictError('Invalid submission');
           }
+          this.rememberFinalizationProof(quizId, (result as { finalizationProof?: unknown }).finalizationProof);
           return result;
         }),
         catchError((err: unknown) => {
@@ -262,10 +266,185 @@ export class TopicQuizAttemptService {
       );
   }
 
+  // ── post-attempt review ──────────────────────────────────────────
+
+  /** The settled value of `attempt$`, so a proof can be stored together with the attempt it belongs to. */
+  private attemptReceiptValue: string | null = null;
+
+  private reviewKey(quizId: string): string {
+    return `topicQuizReviewCredentials:v1:${quizId}`;
+  }
+
+  /**
+   * Remember the FINALIZATION PROOF the server issued with a verified answer (a resolved answer, an expiry, or a partial
+   * answer with a selection), together with the attempt receipt it belongs to. The proof says THAT the attempt has a verified
+   * answer, never whether it was right, and it is what authorizes the post-attempt review. Kept in this tab's session storage
+   * so the review survives a reload; it is dropped with the attempt (`clear`).
+   */
+  rememberFinalizationProof(quizId: string, proof: unknown): void {
+    if (typeof proof !== 'string' || proof.length === 0 || !this.attemptReceiptValue) return;
+    try {
+      sessionStorage.setItem(
+        this.reviewKey(quizId),
+        JSON.stringify({ attemptReceipt: this.attemptReceiptValue, proof })
+      );
+    } catch {
+      // Storage unavailable: the review simply is not offered after a reload.
+    }
+  }
+
+  /** Is there a proof of a verified attempt on record for this quiz? */
+  hasFinalizationProof(quizId: string): boolean {
+    return this.reviewCredentials(quizId) !== null;
+  }
+
+  private reviewCredentials(
+    quizId: string
+  ): { attemptReceipt: string; proof: string; finalization: string | null } | null {
+    try {
+      const raw = sessionStorage.getItem(this.reviewKey(quizId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { attemptReceipt?: unknown; proof?: unknown; finalization?: unknown };
+      return typeof parsed.attemptReceipt === 'string' && typeof parsed.proof === 'string'
+        ? {
+            attemptReceipt: parsed.attemptReceipt,
+            proof: parsed.proof,
+            finalization: typeof parsed.finalization === 'string' ? parsed.finalization : null
+          }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The in-flight (or settled) finalization request for a quiz, so a review can wait for it. */
+  private readonly finalizing = new Map<string, Observable<string>>();
+
+  /**
+   * FINALIZE the attempt through the server (Show Results). Skipped questions are allowed: the server only needs the attempt's
+   * proof of a verified answer. The signed finalization it returns is what authorizes the post-attempt review; a verified
+   * answer alone never does. Idempotent: a second call reuses the first. Without a proof on record nothing is requested.
+   */
+  finalizeAttempt(quizId: string): Observable<string> {
+    const credentials = this.reviewCredentials(quizId);
+    if (!credentials) return throwError(() => new QuestionVerdictError('Invalid submission'));
+    if (credentials.finalization) return of(credentials.finalization);
+
+    const cached = this.finalizing.get(quizId);
+    if (cached) return cached;
+
+    const request$ = this.http
+      .post<{ finalizationReceipt?: unknown }>(
+        `${this.baseUrl(quizId)}/attempts/finalize`,
+        {},
+        {
+          headers: {
+            'X-Attempt-Receipt': credentials.attemptReceipt,
+            'X-Finalization-Proof': credentials.proof
+          }
+        }
+      )
+      .pipe(
+        map((body) => {
+          if (typeof body?.finalizationReceipt !== 'string' || body.finalizationReceipt.length === 0) {
+            throw new QuestionVerdictError('Invalid submission');
+          }
+          return body.finalizationReceipt;
+        }),
+        tap((finalization) => {
+          try {
+            sessionStorage.setItem(
+              this.reviewKey(quizId),
+              JSON.stringify({ attemptReceipt: credentials.attemptReceipt, proof: credentials.proof, finalization })
+            );
+          } catch {
+            // Storage unavailable: the finalization still serves this page load.
+          }
+        }),
+        catchError((err: unknown) => {
+          this.finalizing.delete(quizId);
+          return throwError(() =>
+            err instanceof QuestionVerdictError ? err : new QuestionVerdictError('Invalid submission')
+          );
+        }),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+    this.finalizing.set(quizId, request$);
+    return request$;
+  }
+
+  /** Has the attempt been finalized, or is its finalization on the way? The review is only worth asking for then. */
+  canReview(quizId: string): boolean {
+    return this.reviewCredentials(quizId)?.finalization != null || this.finalizing.has(quizId);
+  }
+
+  /**
+   * The post-attempt review of EVERY question's authorized correct options and explanation, including questions never
+   * answered. Authorized by the server only for an attempt that has a verified answer; with no proof on record nothing is
+   * requested. Fails with the same coarse error as every other check, and never reads a local answer bank.
+   */
+  review(quizId: string): Observable<TopicQuizReview> {
+    const credentials = this.reviewCredentials(quizId);
+    if (!credentials) return throwError(() => new QuestionVerdictError('Invalid submission'));
+
+    // Only a FINALIZED attempt may ask: wait for a finalization already on the way, never start one from here.
+    const finalization$ = credentials.finalization
+      ? of(credentials.finalization)
+      : (this.finalizing.get(quizId) ??
+        throwError(() => new QuestionVerdictError('Invalid submission')));
+
+    return finalization$
+      .pipe(
+        switchMap((finalization) =>
+          this.http.post<TopicQuizReview>(
+            `${this.baseUrl(quizId)}/review`,
+            {},
+            {
+              headers: {
+                'X-Attempt-Receipt': credentials.attemptReceipt,
+                'X-Attempt-Finalization': finalization
+              }
+            }
+          )
+        )
+      )
+      .pipe(
+        map((body) => {
+          const questions = body?.questions;
+          if (
+            !Array.isArray(questions) ||
+            questions.some(
+              (q) =>
+                typeof q?.questionText !== 'string' ||
+                !Array.isArray(q.correctOptionTexts) ||
+                typeof q.explanation !== 'string'
+            )
+          ) {
+            throw new QuestionVerdictError('Invalid submission');
+          }
+          return body;
+        }),
+        catchError((err: unknown) =>
+          throwError(() =>
+            err instanceof QuestionVerdictError ? err : new QuestionVerdictError('Invalid submission')
+          )
+        )
+      );
+  }
+
   /** Leaving the quiz. Everything is in memory, so dropping it is the cleanup. */
   clear(): void {
+    if (this.quizId) {
+      try {
+        sessionStorage.removeItem(this.reviewKey(this.quizId));
+      } catch {
+        // nothing to do
+      }
+    }
+    this.finalizing.clear();
     this.quizId = null;
     this.attempt$ = null;
+    this.attemptReceiptValue = null;
     this.questionReceipts.clear();
     this.settledReceipts.clear();
   }
@@ -377,6 +556,16 @@ export class TopicQuizAttemptService {
 }
 
 /** The server throttled a review reveal; try again after `retryAfterMs`. */
+/** The post-attempt review: every question's authorized correct options and explanation. */
+export interface TopicQuizReview {
+  readonly quizId: string;
+  readonly questions: readonly {
+    readonly questionText: string;
+    readonly correctOptionTexts: readonly string[];
+    readonly explanation: string;
+  }[];
+}
+
 export class ReviewRevealRateLimitedError extends QuestionVerdictError {
   constructor(readonly retryAfterMs: number) {
     super('Rate limited');

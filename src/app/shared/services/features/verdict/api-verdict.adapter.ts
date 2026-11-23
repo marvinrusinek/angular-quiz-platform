@@ -73,7 +73,11 @@ export class ApiTopicQuizVerdictAdapter implements TopicQuizVerdictAdapter {
           if (!result || typeof (result as { status?: unknown }).status !== 'string') {
             throw new QuestionVerdictError('Invalid submission');
           }
-          return result;
+          // The server's proof of a verified attempt (the gate for the post-attempt review) rides along on the response. It is
+          // stored for the review and removed here, so it never reaches a verdict, a score or a snapshot.
+          const { finalizationProof, ...rest } = result as QuestionCheckResult & { finalizationProof?: unknown };
+          this.attempts.rememberFinalizationProof(quizId, finalizationProof);
+          return rest as QuestionCheckResult;
         }),
         catchError((err: unknown) =>
           throwError(() =>

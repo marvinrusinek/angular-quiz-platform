@@ -429,3 +429,157 @@ describe('expiry', () => {
     expect(verdicts.verdictFor(QUIZ, MULTI).phase).toBe('expired');
   });
 });
+
+describe('the /check boundary validator, wired through the adapter and the service', () => {
+  const PROOF_KEY = `topicQuizReviewCredentials:v1:${QUIZ}`;
+  const storedProof = (): string | null => {
+    const raw = sessionStorage.getItem(PROOF_KEY);
+    return raw ? (JSON.parse(raw) as { proof: string }).proof : null;
+  };
+
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => sessionStorage.clear());
+
+  /** The first check needs the attempt + question receipts granted once. */
+  function firstCheck(body: object, selection: string[] = ['map', 'filter']) {
+    const outcome: { result?: QuestionCheckResult; error?: unknown } = {};
+    verdicts.checkAnswer(QUIZ, MULTI, selection).subscribe({
+      next: (r) => (outcome.result = r),
+      error: (e: unknown) => (outcome.error = e)
+    });
+    grantReceipts(MULTI);
+    http.expectOne({ method: 'POST', url: url.check }).flush(body);
+    return outcome;
+  }
+
+  it('a valid NODE response keeps working: the proof is captured and stays OUT of the result', () => {
+    const out = firstCheck({ ...RESOLVED, finalizationProof: 'node.proof' });
+    expect(out.error).toBeUndefined();
+    expect(out.result).toEqual(RESOLVED);
+    expect(Object.keys(out.result!)).not.toContain('finalizationProof');
+    expect(storedProof()).toBe('node.proof');
+    expect(verdicts.verdictFor(QUIZ, MULTI).phase).toBe('resolved');
+  });
+
+  it('a valid SPRING response (no proof) works, and stores nothing', () => {
+    const out = firstCheck(RESOLVED);
+    expect(out.result).toEqual(RESOLVED);
+    expect(storedProof()).toBeNull();
+    expect(verdicts.verdictFor(QUIZ, MULTI).phase).toBe('resolved');
+  });
+
+  it('an UNKNOWN status is an ERROR, never an expiry: no reveal, no proof, selection kept', () => {
+    const out = firstCheck({
+      status: 'expiry',
+      correctOptionTexts: ['map', 'filter'],
+      explanation: 'must not be applied',
+      finalizationProof: 'should-not-be-stored'
+    });
+    expect(out.error).toBeInstanceOf(QuestionVerdictError);
+    expect((out.error as Error).message).toBe('Invalid submission');
+
+    const state = verdicts.verdictFor(QUIZ, MULTI);
+    expect(state.phase).toBe('error');
+    expect(state.correctOptionTexts).toEqual([]);
+    expect(state.explanation).toBeNull();
+    expect(state.selectedOptionTexts).toEqual(['map', 'filter']);
+    expect(storedProof()).toBeNull();
+  });
+
+  it('a resolved body without a boolean `correct` is an ERROR, never an incorrect answer', () => {
+    const out = firstCheck({ ...RESOLVED, correct: 'false', finalizationProof: 'p' });
+    expect(out.error).toBeInstanceOf(QuestionVerdictError);
+    const state = verdicts.verdictFor(QUIZ, MULTI);
+    expect(state.phase).toBe('error');
+    expect(state.isResolvedCorrect).toBeNull();
+    expect(state.explanation).toBeNull();
+    expect(storedProof()).toBeNull();
+  });
+
+  it('a malformed incomplete body writes NO partial verdict state', () => {
+    const out = firstCheck(
+      {
+        status: 'incomplete',
+        selectedVerdicts: [{ text: 'map', correct: 'yes' }],
+        remainingCorrectCount: 1,
+        finalizationProof: 'p'
+      },
+      ['map']
+    );
+    expect(out.error).toBeInstanceOf(QuestionVerdictError);
+    const state = verdicts.verdictFor(QUIZ, MULTI);
+    expect(state.phase).toBe('error');
+    expect(state.selectedVerdicts.size).toBe(0);
+    expect(state.remainingCorrectCount).toBeNull();
+    expect(storedProof()).toBeNull();
+  });
+
+  it('a malformed expiry reveal is refused the same way (revealExpired)', () => {
+    let error: unknown;
+    verdicts.revealExpiredQuestion(QUIZ, MULTI).subscribe({ error: (e: unknown) => (error = e) });
+    grantReceipts(MULTI);
+    http
+      .expectOne({ method: 'POST', url: url.check })
+      .flush({ status: 'expired', correctOptionTexts: 'map', explanation: 'x', finalizationProof: 'p' });
+
+    expect(error).toBeInstanceOf(QuestionVerdictError);
+    const state = verdicts.verdictFor(QUIZ, MULTI);
+    expect(state.phase).toBe('error');
+    expect(state.correctOptionTexts).toEqual([]);
+    expect(storedProof()).toBeNull();
+  });
+
+  it('a malformed response keeps the LAST CONFIRMED verdict and the stored proof, and a retry recovers', () => {
+    // 1. A real, valid, proof-carrying resolution.
+    firstCheck({ ...RESOLVED, finalizationProof: 'good.proof' });
+    expect(storedProof()).toBe('good.proof');
+    expect(verdicts.verdictFor(QUIZ, MULTI).isResolvedCorrect).toBe(true);
+
+    // 2. A later check returns garbage carrying a different proof.
+    let error: unknown;
+    verdicts.checkAnswer(QUIZ, MULTI, ['map', 'filter']).subscribe({ error: (e: unknown) => (error = e) });
+    http
+      .expectOne({ method: 'POST', url: url.check })
+      .flush({ status: 'bogus', finalizationProof: 'bad.proof' });
+    expect(error).toBeInstanceOf(QuestionVerdictError);
+
+    const failed = verdicts.verdictFor(QUIZ, MULTI);
+    expect(failed.phase).toBe('error'); // the existing failure behaviour
+    expect(failed.correctOptionTexts).toEqual(['map', 'filter']); // the last confirmed state is kept
+    expect(failed.explanation).toBe('map and filter are operators.');
+    expect(failed.isResolvedCorrect).toBe(true);
+    expect(failed.selectedOptionTexts).toEqual(['map', 'filter']);
+    expect(storedProof()).toBe('good.proof'); // the bad body's proof was never stored
+
+    // 3. Retrying with a good response recovers fully.
+    let retried: QuestionCheckResult | undefined;
+    verdicts.checkAnswer(QUIZ, MULTI, ['map', 'filter']).subscribe((r) => (retried = r));
+    http
+      .expectOne({ method: 'POST', url: url.check })
+      .flush({ ...RESOLVED, finalizationProof: 'newer.proof' });
+    expect(retried).toEqual(RESOLVED);
+    const recovered = verdicts.verdictFor(QUIZ, MULTI);
+    expect(recovered.phase).toBe('resolved');
+    expect(recovered.isResolvedCorrect).toBe(true);
+    expect(storedProof()).toBe('newer.proof');
+  });
+
+  it('valid incomplete and expired shapes still apply exactly as before', () => {
+    const inc = firstCheck({ ...INCOMPLETE, finalizationProof: 'p1' }, ['map']);
+    expect(inc.result).toEqual(INCOMPLETE);
+    expect(verdicts.verdictFor(QUIZ, MULTI).phase).toBe('incomplete');
+    expect(verdicts.verdictFor(QUIZ, MULTI).remainingCorrectCount).toBe(1);
+
+    let expired: unknown;
+    verdicts.revealExpiredQuestion(QUIZ, MULTI).subscribe((r) => (expired = r));
+    http.expectOne({ method: 'POST', url: url.check }).flush({
+      status: 'expired',
+      correctOptionTexts: ['map', 'filter'],
+      explanation: '',
+      finalizationProof: 'p2'
+    });
+    expect(expired).toEqual({ status: 'expired', correctOptionTexts: ['map', 'filter'], explanation: '' });
+    expect(verdicts.verdictFor(QUIZ, MULTI).phase).toBe('expired');
+    expect(storedProof()).toBe('p2');
+  });
+});

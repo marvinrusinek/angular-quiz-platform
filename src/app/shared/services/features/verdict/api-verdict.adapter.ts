@@ -5,6 +5,7 @@ import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { API_BASE_URL } from '@shared/tokens/api-base-url.token';
 import { TopicQuizAttemptService } from './topic-quiz-attempt.service';
+import { toQuestionCheckResult } from './question-check-result';
 import type { TopicQuizVerdictAdapter } from './verdict-adapter';
 import {
   QuestionVerdictError,
@@ -69,15 +70,17 @@ export class ApiTopicQuizVerdictAdapter implements TopicQuizVerdictAdapter {
         )
       )
       .pipe(
-        map((result) => {
-          if (!result || typeof (result as { status?: unknown }).status !== 'string') {
-            throw new QuestionVerdictError('Invalid submission');
-          }
-          // The server's proof of a verified attempt (the gate for the post-attempt review) rides along on the response. It is
-          // stored for the review and removed here, so it never reaches a verdict, a score or a snapshot.
-          const { finalizationProof, ...rest } = result as QuestionCheckResult & { finalizationProof?: unknown };
-          this.attempts.rememberFinalizationProof(quizId, finalizationProof);
-          return rest as QuestionCheckResult;
+        map((body) => {
+          // VALIDATE FIRST. An unknown status or a malformed field fails here, before a proof is remembered and before the
+          // service can read the body as an expiry or an incorrect answer. The proof (the gate for the post-attempt review) is
+          // stored separately and never reaches a verdict, a score or a snapshot: the validated result is rebuilt from the known
+          // fields, so it carries no `finalizationProof` or anything else the backend adds.
+          const result = toQuestionCheckResult(body);
+          this.attempts.rememberFinalizationProof(
+            quizId,
+            (body as { finalizationProof?: unknown }).finalizationProof
+          );
+          return result;
         }),
         catchError((err: unknown) =>
           throwError(() =>

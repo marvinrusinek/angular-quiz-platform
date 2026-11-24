@@ -79,13 +79,22 @@ const visibleText = (a: HTMLElement): string => a.querySelector('[data-intro-vis
 const exposedText = (a: HTMLElement): string => a.querySelector('.resource-exposed')!.textContent!;
 const status = (): string => (el().querySelector('.resources-status')?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
+/**
+ * The resource delivers a response one microtask after it is flushed (it is read through the reactive graph, not in the
+ * subscribe callback), so a test lets it settle and then renders.
+ */
+const settle = async (): Promise<void> => {
+  await fixture.whenStable();
+  fixture.detectChanges();
+};
+
 afterEach(() => http.verify({ ignoreCancelled: true }));
 
 describe('Learning Resources view: always-visible list', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     build();
     request().flush({ quizId: QUIZ_ID, resources: LINKS });
-    fixture.detectChanges();
+    await settle();
   });
 
   it('shows every link at once, in the API order, with nothing to expand', () => {
@@ -227,43 +236,43 @@ describe('Learning Resources view: always-visible list', () => {
 });
 
 describe('Learning Resources view: loading, none, could not load', () => {
-  it('says it is loading until the request settles', () => {
+  it('says it is loading until the request settles', async () => {
     build();
     expect(status()).toContain('Loading learning resources');
     expect(el().querySelector('.resources-status')!.getAttribute('role')).toBe('status');
     request().flush({ quizId: QUIZ_ID, resources: LINKS });
-    fixture.detectChanges();
+    await settle();
     expect(el().querySelector('.resources-status')).toBeNull();
   });
 
-  it('a quiz that genuinely has no resources says so, naming the quiz', () => {
+  it('a quiz that genuinely has no resources says so, naming the quiz', async () => {
     build();
     request().flush({ quizId: QUIZ_ID, resources: [] });
-    fixture.detectChanges();
+    await settle();
     expect(status()).toBe('There are no learning resources for Angular Router yet.');
     expect(links()).toHaveLength(0);
     expect(el().querySelector('.resources-retry')).toBeNull();
   });
 
-  it('a FAILED request says it could not be loaded, as an alert with a Try again button (not the empty message)', () => {
+  it('a FAILED request says it could not be loaded, as an alert with a Try again button (not the empty message)', async () => {
     build();
     request().error(new ProgressEvent('error'));
-    fixture.detectChanges();
+    await settle();
     expect(status()).toContain("couldn't be loaded");
     expect(status()).not.toContain('There are no learning resources');
     expect(el().querySelector('.resources-status')!.getAttribute('role')).toBe('alert');
     expect(el().querySelector<HTMLButtonElement>('button.resources-retry')!.type).toBe('button');
   });
 
-  it('Try again requests the resources again and shows the links when it works', () => {
+  it('Try again requests the resources again and shows the links when it works', async () => {
     build();
     request().error(new ProgressEvent('error'));
-    fixture.detectChanges();
+    await settle();
     el().querySelector<HTMLButtonElement>('.resources-retry')!.click();
-    fixture.detectChanges();
+    await settle();
     expect(status()).toContain('Loading learning resources');
     request().flush({ quizId: QUIZ_ID, resources: LINKS });
-    fixture.detectChanges();
+    await settle();
     expect(links()).toHaveLength(2);
   });
 });

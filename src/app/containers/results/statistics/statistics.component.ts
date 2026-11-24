@@ -10,12 +10,15 @@ import {
   OnInit,
   signal
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { QuizMetadata, QuizStatus, Resource } from '@shared/models';
 
 import { TopicQuizMetadataService } from '@shared/services/api/topic-quiz-metadata.service';
-import { TopicQuizResourcesService } from '@shared/services/api/topic-quiz-resources.service';
+import {
+  TopicQuizResourcesService,
+  type ResourcesResult
+} from '@shared/services/api/topic-quiz-resources.service';
 import { QuizService } from '@shared/services/data/quiz.service';
 import { QuestionVerdictService } from '@shared/services/features/verdict/question-verdict.service';
 import { TimerService } from '@shared/services/features/timer/timer.service';
@@ -62,9 +65,41 @@ export class StatisticsComponent implements OnInit {
   readonly milestoneName = computed(() => this.metadataApi.milestoneFor(this.quizId()));
 
   readonly quizMetadata = signal<Partial<QuizMetadata>>({});
-  readonly resources = signal<Resource[]>([]);
-  /** The dedicated Resources view's load state, so it can say loading / none / could-not-load. */
-  readonly resourcesStatus = signal<'loading' | 'ready' | 'failed'>('loading');
+  /**
+   * The Learning Resources load. The existing service stays the one place that requests, validates and maps the response
+   * (`ok` with a list, or `failed`); this only decides WHEN it runs and what is shown meanwhile.
+   *
+   *  - No quiz id: no request (the resource stays idle).
+   *  - A new quiz id: the request for the previous one is cancelled, and its late response is never applied.
+   *  - `reload()` (Try again) is the retry. The installed runtime refuses it while a load is already running.
+   */
+  private readonly resourcesLoad = rxResource<ResourcesResult, string | undefined>({
+    params: () => this.quizId() || undefined,
+    stream: ({ params }) => this.resourcesApi.loadResourcesResult(params as string)
+  });
+
+  /** What the Resources view says: loading, ready (links or none) or could-not-load. */
+  readonly resourcesStatus = computed<'loading' | 'ready' | 'failed'>(() => {
+    // No quiz to load for: nothing is requested and the view shows its normal empty state.
+    if (!this.quizId()) return 'ready';
+
+    const status = this.resourcesLoad.status();
+    // `value()` is read ONLY once the load has resolved, never in the error state (where it throws) and never while a
+    // different quiz's load, or a reload, is still running.
+    if (status === 'resolved') {
+      return this.resourcesLoad.value()?.status === 'ok' ? 'ready' : 'failed';
+    }
+    if (status === 'error') return 'failed';
+    // idle (the request is about to start), loading and reloading all show the existing loading state.
+    return 'loading';
+  });
+
+  /** The links to show: only a resolved, successful load for the CURRENT quiz id. */
+  readonly resources = computed<Resource[]>(() => {
+    if (!this.quizId() || this.resourcesLoad.status() !== 'resolved') return [];
+    const result = this.resourcesLoad.value();
+    return result?.status === 'ok' ? result.resources : [];
+  });
 
   readonly completionTimeSig = signal(0);
   readonly elapsedMinutes = computed(() => Math.floor(this.completionTimeSig() / 60));
@@ -248,38 +283,16 @@ export class StatisticsComponent implements OnInit {
     // renders from data it already has, and a slow or failed resources call
     // must not delay or break it. The service resolves to an empty list on any
     // failure, so the panel behaves exactly as it does for the twelve quizzes
-    // that have no links.
-    this.fetchResources();
+    // that have no links. (The request itself is `resourcesLoad`, driven by `quizId()`.)
     this.calculateElapsedTime();
     this.sendQuizStatusToQuizService();
 
     this.cdRef.markForCheck();
   }
 
-  /** Load this quiz's resources from the API; a failure is shown as such, not as an empty list. */
-  private fetchResources(): void {
-    if (!this.quizId()) {
-      this.resourcesStatus.set('ready');
-      return;
-    }
-    this.resourcesApi
-      .loadResourcesResult(this.quizId())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        if (result.status === 'ok') {
-          this.resources.set(result.resources);
-          this.resourcesStatus.set('ready');
-        } else {
-          this.resourcesStatus.set('failed');
-        }
-        this.cdRef.markForCheck();
-      });
-  }
-
+  /** Try again after a failed load. A reload is ignored while a load is already running. */
   retryResources(): void {
-    this.resourcesStatus.set('loading');
-    this.cdRef.markForCheck();
-    this.fetchResources();
+    this.resourcesLoad.reload();
   }
 
   private timedOutIndices(): Set<number> {

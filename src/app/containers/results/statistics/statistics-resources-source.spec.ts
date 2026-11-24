@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
@@ -87,6 +87,15 @@ function build() {
 
 const resourcesRequest = () => http.expectOne(`${BASE}/quizzes/${QUIZ_ID}/resources`);
 
+/**
+ * The resource delivers a response one microtask after it is flushed (it is read through the reactive graph, not in the
+ * subscribe callback), so a test lets it settle and then renders.
+ */
+const settle = async (fixture: ComponentFixture<StatisticsComponent>): Promise<void> => {
+  await fixture.whenStable();
+  fixture.detectChanges();
+};
+
 afterEach(() => http.verify({ ignoreCancelled: true }));
 
 describe('resources are sourced from the API', () => {
@@ -95,7 +104,7 @@ describe('resources are sourced from the API', () => {
     expect(resourcesRequest().request.method).toBe('GET');
   });
 
-  it("renders what the API returned, in the API's order", () => {
+  it("renders what the API returned, in the API's order", async () => {
     const fixture = build();
     resourcesRequest().flush({
       quizId: QUIZ_ID,
@@ -104,7 +113,7 @@ describe('resources are sourced from the API', () => {
         { title: 'Router API', url: 'https://angular.dev/api/router', host: 'Angular' }
       ]
     });
-    fixture.detectChanges();
+    await settle(fixture);
 
     expect(fixture.componentInstance.resources().map((r) => r.title)).toEqual([
       'Router guide',
@@ -112,45 +121,45 @@ describe('resources are sourced from the API', () => {
     ]);
   });
 
-  it('renders an empty panel when the quiz has no resources', () => {
+  it('renders an empty panel when the quiz has no resources', async () => {
     const fixture = build();
     resourcesRequest().flush({ quizId: QUIZ_ID, resources: [] });
-    fixture.detectChanges();
+    await settle(fixture);
 
     expect(fixture.componentInstance.resources()).toEqual([]);
   });
 });
 
 describe('THE LOCAL BANK IS NOT THE SOURCE, AND NOT A FALLBACK', () => {
-  it('never calls quizService.loadResourcesForQuiz', () => {
+  it('never calls quizService.loadResourcesForQuiz', async () => {
     const fixture = build();
     resourcesRequest().flush({ quizId: QUIZ_ID, resources: [] });
-    fixture.detectChanges();
+    await settle(fixture);
 
     expect(loadResourcesForQuiz).not.toHaveBeenCalled();
   });
 
-  it("never renders the local bank's list, even though the stub still exposes one", () => {
+  it("never renders the local bank's list, even though the stub still exposes one", async () => {
     const fixture = build();
     resourcesRequest().flush({
       quizId: QUIZ_ID,
       resources: [{ title: 'API LINK', url: 'https://api.test/link', host: 'API' }]
     });
-    fixture.detectChanges();
+    await settle(fixture);
 
     const titles = fixture.componentInstance.resources().map((r) => r.title);
     expect(titles).toEqual(['API LINK']);
     expect(titles).not.toContain('LOCAL BANK LINK');
   });
 
-  it('does NOT fall back to the local bank when the API fails', () => {
+  it('does NOT fall back to the local bank when the API fails', async () => {
     // The regression this whole slice exists to prevent: an error path that
     // quietly reads the bundled asset would pass every other test here and then
     // break the day the asset is deleted.
     const spy = jest.spyOn(quizDataCache, 'getQuizData');
     const fixture = build();
     resourcesRequest().flush('boom', { status: 500, statusText: 'Server Error' });
-    fixture.detectChanges();
+    await settle(fixture);
 
     expect(fixture.componentInstance.resources()).toEqual([]);
     expect(loadResourcesForQuiz).not.toHaveBeenCalled();
@@ -158,10 +167,10 @@ describe('THE LOCAL BANK IS NOT THE SOURCE, AND NOT A FALLBACK', () => {
     spy.mockRestore();
   });
 
-  it('requests no local asset path', () => {
+  it('requests no local asset path', async () => {
     const fixture = build();
     resourcesRequest().flush({ quizId: QUIZ_ID, resources: [] });
-    fixture.detectChanges();
+    await settle(fixture);
 
     http.expectNone('assets/data/quiz.json');
     http.expectNone('/assets/data/quiz.json');
@@ -169,12 +178,12 @@ describe('THE LOCAL BANK IS NOT THE SOURCE, AND NOT A FALLBACK', () => {
 });
 
 describe('a failed resources load is not fatal', () => {
-  it('leaves the rest of the statistics panel working', () => {
+  it('leaves the rest of the statistics panel working', async () => {
     // Resources are supplemental. The score, totals and elapsed time come from
     // data the component already has, and must survive the panel being empty.
     const fixture = build();
     resourcesRequest().flush('boom', { status: 503, statusText: 'Unavailable' });
-    fixture.detectChanges();
+    await settle(fixture);
 
     const metadata = fixture.componentInstance.quizMetadata();
     expect(metadata.totalQuestions).toBe(5);

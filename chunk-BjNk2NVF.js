@@ -1,1 +1,0 @@
-import{yt as hu}from"./chunk-ZQnnp82z.js";function a(r,o,s){let e=hu(r,s,o);if(e&&(e.phase===`expired`||e.phase===`resolved`||e.phase===`incomplete`&&e.selectedOptionTexts.length>0))return!0;let t=r.userAnswers?.[s];return Array.isArray(t)?t.length>0:t!=null}export{a as t};

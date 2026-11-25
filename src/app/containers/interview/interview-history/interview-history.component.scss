@@ -82,6 +82,7 @@
   margin: 0 0 16px;
 
   > div {
+    position: relative; // anchors the exposed Narrator text laid over the tile
     text-align: center;
     padding: 12px 6px;
     border: 1px solid var(--ir-border);
@@ -104,50 +105,18 @@
   }
 }
 
+// Holds a statistic's label and value so they can be hidden from AT as one
+// unit; it generates no box, so the layout is exactly as before.
+.ih-stat__visible {
+  display: contents;
+}
+
 // Full-width section dividers between the analytics blocks (readiness / Topic
 // Trends) and the attempt list.
 .ih-rule {
   border: 0;
   border-top: 1px solid var(--ir-border);
   margin: 20px 0;
-}
-
-// Quick-jump link — a subtle, centered text button shown only while the
-// interviews list is below the fold.
-.interview-history__jump {
-  margin: 0 0 16px;
-  text-align: center;
-}
-
-.ih-jump-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border: 1px solid var(--ir-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ir-accent);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-
-  &:hover {
-    border-color: var(--ir-accent);
-    background: rgba(0, 122, 255, 0.08);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--ir-accent);
-    outline-offset: 2px;
-  }
-
-  &__arrow { font-size: 14px; line-height: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ih-jump-link { transition: none; }
 }
 
 // Compact readiness banner (now below the interviews list).
@@ -218,11 +187,21 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   padding: 18px;
 
+  // The heading element itself (title + status badge as one stop); it adds
+  // nothing to the layout the old wrapper div had.
   &__head {
+    position: relative; // anchors the exposed Narrator text laid over it
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    margin: 0;
+    font: inherit;
+  }
+
+  // Groups the interview type and the date (see the template); a plain block.
+  &__meta {
+    position: relative; // anchors the exposed Narrator text laid over it
   }
 
   &__title {
@@ -261,6 +240,10 @@
     gap: 10px;
     margin: 0;
 
+    > div {
+      position: relative; // anchors the exposed Narrator text laid over the stat
+    }
+
     dt {
       color: var(--ir-muted);
       font-size: 11px;
@@ -282,6 +265,7 @@
   }
 
   &__topics {
+    position: relative; // anchors the exposed Narrator text laid over the block
     margin-top: 14px;
   }
 
@@ -318,6 +302,14 @@
     gap: 10px;   // space between "Review Answers" and "View Summary"
     justify-content: flex-end;
   }
+}
+
+// View Summary is a native button; it inherits the page's text settings the way
+// the links beside it do, so it looks exactly like them.
+button.ih-btn {
+  font-family: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
 }
 
 .ih-btn {

@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { InterviewAttemptHistoryEntry, InterviewCompletionReason } from '@shared/models';
 import { SK_INTERVIEW_HISTORY } from '@shared/constants/session-keys';
 import { InterviewReadinessService } from '@shared/services/features/interview/interview-readiness.service';
@@ -101,13 +101,18 @@ describe('InterviewHistoryComponent', () => {
     expect(el.querySelector('.ih-card__badge')?.textContent).toContain('Time expired');
   });
 
-  it("9. each card links to that attempt's read-only summary", () => {
+  it("9. each card opens that attempt's read-only summary", () => {
     seed([entry(70, 1)]);
-    const link = (render().nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
-      '.ih-card__actions a'
+    const fixture = render();
+    const router = TestBed.inject(Router);
+    const navigate = jest.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '.ih-card__actions button'
     );
-    expect(link?.textContent).toContain('View Summary');
-    expect(link?.getAttribute('href')).toContain('/interview/history/att-1');
+    expect(button?.textContent).toContain('View Summary');
+    expect(button?.type).toBe('button');
+    button?.click();
+    expect(String(navigate.mock.calls[0]?.[0])).toBe('/interview/history/att-1');
   });
 
   it('offers NO Review Answers shortcut — history keeps analytics, not answers', () => {
@@ -118,7 +123,7 @@ describe('InterviewHistoryComponent', () => {
     const cards = Array.from((render().nativeElement as HTMLElement).querySelectorAll('.ih-card'));
     for (const card of cards) {
       const labels = Array.from(
-        card.querySelectorAll<HTMLAnchorElement>('.ih-card__actions a')
+        card.querySelectorAll<HTMLElement>('.ih-card__actions a, .ih-card__actions button')
       ).map((el) => el.textContent?.trim());
       expect(labels).toEqual(['View Summary']);
     }
@@ -129,38 +134,32 @@ describe('InterviewHistoryComponent', () => {
     const el = render().nativeElement as HTMLElement;
     const nodes = [
       '.ih-summary',
-      '#interviews',
+      '.interview-history__interviews',
       '.interview-history__readiness',
       '#topic-trends'
     ].map((sel) => el.querySelector(sel));
     for (const n of nodes) expect(n).not.toBeNull();
     // The interviews list contains the cards, and each section precedes the next.
-    expect(el.querySelector('#interviews .ih-card')).not.toBeNull();
+    expect(el.querySelector('.interview-history__interviews .ih-card')).not.toBeNull();
     for (let i = 0; i < nodes.length - 1; i++) {
       const rel = nodes[i]!.compareDocumentPosition(nodes[i + 1]!);
       expect(rel & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
   });
 
-  it('jumpToInterviews smooth-scrolls the interviews section into view', () => {
-    seed([entry(70, 1)]);
-    const fixture = render();
-    const section = (fixture.nativeElement as HTMLElement).querySelector(
-      '#interviews'
-    ) as HTMLElement;
-    const scroll = jest.fn();
-    section.scrollIntoView = scroll;
-    fixture.componentInstance.jumpToInterviews();
-    expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+  it('has no "Jump to Interviews" link or button, however long the page is', () => {
+    seed([entry(70, 1), entry(80, 2), entry(90, 3)]);
+    const el = render().nativeElement as HTMLElement;
+    expect(el.querySelector('.ih-jump-link, .interview-history__jump')).toBeNull();
+    expect(el.textContent).not.toContain('Jump to Interviews');
   });
 
-  it('16. filters are real buttons and actions are real links (keyboard-operable)', () => {
+  it('16. filters and the View Summary action are real buttons (keyboard-operable)', () => {
     seed([entry(70, 1)]);
     const el = render().nativeElement as HTMLElement;
     expect(el.querySelector('.ih-filter')?.tagName).toBe('BUTTON');
-    expect(el.querySelector('.ih-filter')?.getAttribute('role')).toBe('radio');
-    expect(el.querySelector('.ih-filter')?.getAttribute('aria-checked')).toBe('true'); // All active by default
-    expect(el.querySelector('.ih-card__actions a')?.tagName).toBe('A');
+    expect(el.querySelector('.ih-filter')?.getAttribute('aria-pressed')).toBe('true'); // All active by default
+    expect(el.querySelector('.ih-card__actions button')?.tagName).toBe('BUTTON');
   });
 
   it('shows "Not recorded" instead of 0s when a duration was never retained', () => {
@@ -279,7 +278,7 @@ describe('InterviewHistoryComponent — filter Angular Aria Toolbar prototype', 
     expect(tabbable).toHaveLength(1);
   });
 
-  it('mouse click on "Submitted" updates filter, aria-checked, and the displayed cards', async () => {
+  it('mouse click on "Submitted" updates filter, aria-pressed, and the displayed cards', async () => {
     seed([entry(70, 1, 'submitted'), entry(50, 2, 'time-expired')]);
     const fixture = await renderAsync();
     const comp = fixture.componentInstance;
@@ -289,7 +288,7 @@ describe('InterviewHistoryComponent — filter Angular Aria Toolbar prototype', 
     fixture.detectChanges();
 
     expect(comp.filter()).toBe('submitted');
-    expect(submittedBtn.getAttribute('aria-checked')).toBe('true');
+    expect(submittedBtn.getAttribute('aria-pressed')).toBe('true');
     expect(comp.cards()).toHaveLength(1);
     expect(comp.cards()[0].entry.completionReason).toBe('submitted');
   });
@@ -321,9 +320,8 @@ describe('InterviewHistoryComponent — filter Angular Aria Toolbar prototype', 
  * focus.
  */
 describe('InterviewHistoryComponent — entry focus (normal vs. topic-trends fragment)', () => {
-  // jsdom does not implement Element.scrollIntoView at all (confirmed by
-  // this file's own jumpToInterviews test, which stubs it per-element) —
-  // the property doesn't exist, so jest.spyOn can't wrap it; it has to be
+  // jsdom does not implement Element.scrollIntoView at all — the property
+  // doesn't exist, so jest.spyOn can't wrap it; it has to be
   // assigned directly. Defined on the prototype since the target element
   // doesn't exist until after render.
   beforeEach(() => {

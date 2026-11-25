@@ -144,7 +144,7 @@ test.describe('Interview Mode', () => {
     await expect(page.locator('.ih-card__actions a:has-text("Review Answers")')).toBeVisible();
 
     // View Summary opens the read-only historical detail (no session restore).
-    await page.locator('.ih-card__actions a:has-text("View Summary")').click();
+    await page.locator('.ih-card__actions button:has-text("View Summary")').click();
     await expect(page).toHaveURL(/\/interview\/history\/.+/);
     await expect(page.locator('.ihd__readonly')).toContainText('Read Only');
 

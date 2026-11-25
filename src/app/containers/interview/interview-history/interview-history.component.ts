@@ -8,7 +8,6 @@ import {
   afterNextRender,
   computed,
   inject,
-  signal,
   viewChild
 } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
@@ -26,6 +25,7 @@ import { InterviewSessionReferenceStorage } from '@shared/services/interview/int
 import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-toggle.component';
 import { InterviewReadinessComponent } from '../../../components/interview/interview-readiness/interview-readiness.component';
 import { InterviewReadinessService } from '@shared/services/features/interview/interview-readiness.service';
+import { IntroExposedTextDirective } from '../../introduction/intro-exposed-text.directive';
 import { InterviewTopicTrendsComponent } from '../../../components/interview/interview-topic-trends/interview-topic-trends.component';
 import { InterviewTopicTrendsService } from '@shared/services/features/interview/interview-topic-trends.service';
 import { ScrollDownIndicatorComponent } from '../../../components/scroll-down-indicator/scroll-down-indicator.component';
@@ -49,6 +49,7 @@ import { InterviewHistoryStore } from './interview-history.store';
     ThemeToggleComponent,
     InterviewReadinessComponent,
     InterviewTopicTrendsComponent,
+    IntroExposedTextDirective,
     ScrollDownIndicatorComponent,
     Toolbar,
     ToolbarWidget,
@@ -124,33 +125,14 @@ export class InterviewHistoryComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly host = inject(ElementRef<HTMLElement>);
 
-  // The interviews list section — the scroll target for the quick-jump link and
-  // what the visibility observer watches.
-  private readonly interviewsSection = viewChild<ElementRef<HTMLElement>>('interviewsSection');
-
   // This page's own heading — the normal-entry focus target (see
   // focusEntryTarget()'s own comment).
   private readonly historyHeading = viewChild<ElementRef<HTMLElement>>('historyHeading');
 
-  // Whether the interviews list is at least partly in the viewport. Starts true
-  // so the jump link never flashes before the observer measures; the observer
-  // flips it to false while the list is below the fold.
-  private readonly interviewsVisible = signal(true);
-
-  // The quick-jump link shows only when there IS history and the list isn't
-  // currently visible (i.e. the user would otherwise have to scroll to reach it).
-  readonly showJumpLink = computed(() => this.hasHistory() && !this.interviewsVisible());
-
   constructor() {
     afterNextRender(() => {
-      this.observeInterviews();
       this.focusEntryTarget();
     });
-  }
-
-  /** Smooth-scroll to the interviews list. */
-  jumpToInterviews(): void {
-    this.interviewsSection()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /**
@@ -182,20 +164,6 @@ export class InterviewHistoryComponent implements OnInit {
     this.historyHeading()?.nativeElement.focus();
   }
 
-  // Track whether the interviews list is on-screen so the jump link hides once
-  // the user reaches it (and never shows when the list already fits above the
-  // fold). No-op where IntersectionObserver is unavailable.
-  private observeInterviews(): void {
-    const el = this.interviewsSection()?.nativeElement;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      (entries) => this.interviewsVisible.set(entries.some((e) => e.isIntersecting)),
-      { threshold: 0 }
-    );
-    observer.observe(el);
-    this.destroyRef.onDestroy(() => observer.disconnect());
-  }
-
   // Summary metrics — reuse the shared trends (same source as Performance Trends).
   readonly trends = this.history.trends;
 
@@ -206,6 +174,7 @@ export class InterviewHistoryComponent implements OnInit {
   // Topic Trends — per-topic direction/strength derived from the same history.
   private readonly topicTrendsService = inject(InterviewTopicTrendsService);
   readonly topicTrends = this.topicTrendsService.trends;
+
   readonly hasHistory = computed(() => this.history.history().length > 0);
 
   /**
@@ -270,6 +239,69 @@ export class InterviewHistoryComponent implements OnInit {
     return entry.completionReason === 'time-expired'
       ? $localize`Time expired`
       : $localize`Submitted`;
+  }
+
+  // ── Narrator phrases ────────────────────────────────────────────────────
+  // One complete phrase per statistic, "Label, value" (the Interview Results
+  // convention), exposed over the visible label and value. They say the same
+  // thing as the visible text, in the same order.
+
+  readonly completedPhrase = computed(() =>
+    this.hasAgedOut()
+      ? $localize`Completed Interviews, ${this.lifetimeCount()}, last ${this.retainedCount()} shown`
+      : $localize`Completed Interviews, ${this.lifetimeCount()}`
+  );
+  readonly bestPhrase = computed(() => $localize`Best Score, ${this.trends().best}%`);
+  readonly averagePhrase = computed(() => $localize`Average Score, ${this.trends().average}%`);
+  readonly latestPhrase = computed(() => $localize`Latest Score, ${this.trends().latest}%`);
+
+  scorePhrase(entry: InterviewAttemptHistoryEntry): string {
+    return $localize`Score: ${entry.score} out of ${entry.totalQuestions}, ${entry.percentage}%`;
+  }
+
+  durationPhrase(entry: InterviewAttemptHistoryEntry): string {
+    return $localize`Duration: ${this.spokenDuration(entry.durationSeconds)}`;
+  }
+
+  difficultyPhrase(entry: InterviewAttemptHistoryEntry): string {
+    const difficulty = new TitleCasePipe().transform(entry.configuredDifficulty || 'mixed');
+    return $localize`Difficulty: ${difficulty}`;
+  }
+
+  /** "Topics: Forms, HTTP" — the card's topic chips as one phrase. */
+  topicsPhrase(topics: readonly string[]): string {
+    return $localize`Topics: ${topics.join(', ')}`;
+  }
+
+  /**
+   * The card heading's name: "#" is spoken as "hashtag", and the status badge
+   * is part of the same stop, e.g. "Interview number 90, Submitted".
+   */
+  headingPhrase(entry: InterviewAttemptHistoryEntry, number: number): string {
+    return $localize`Interview number ${number}, ${this.completionLabel(entry)}`;
+  }
+
+  /** The interview type and its date as one phrase: "Custom Interview, July 23, 2026". */
+  metaPhrase(entry: InterviewAttemptHistoryEntry): string {
+    return $localize`${this.interviewKindLabel(entry)}, ${this.formatDate(entry.completedAt)}`;
+  }
+
+  /** "24m 31s" read aloud as full words, so it is not spoken as letters. */
+  private spokenDuration(seconds: number | undefined): string {
+    if (seconds == null) return $localize`Not recorded`;
+    const total = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(hours === 1 ? $localize`1 hour` : $localize`${hours} hours`);
+    if (minutes > 0) {
+      parts.push(minutes === 1 ? $localize`1 minute` : $localize`${minutes} minutes`);
+    }
+    if (secs > 0 || parts.length === 0) {
+      parts.push(secs === 1 ? $localize`1 second` : $localize`${secs} seconds`);
+    }
+    return parts.join(' ');
   }
 
   // An unretained duration reads as "Not recorded" — never a misleading "0s".

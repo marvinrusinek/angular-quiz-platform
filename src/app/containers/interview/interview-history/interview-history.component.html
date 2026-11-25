@@ -19,60 +19,70 @@
     </div>
   } @else {
     <!-- Compact summary — reuses the same trends as Performance Trends. -->
-    <dl class="ih-summary" aria-label="Interview history summary" i18n-aria-label>
-      <div>
-        <dt i18n>Completed Interviews</dt>
-        <!-- History retains only the newest 20 attempts while the attempt number
-             keeps climbing, so once older attempts age out the lifetime total and
-             the number on file differ. Show both rather than a bare retained
-             count, which read as a miscount (e.g. "20" beside an Interview #25). -->
-        <dd>
-          {{ lifetimeCount() }}
-          @if (hasAgedOut()) {
-            <span class="ih-summary__note" i18n>· last {{ retainedCount() }} shown</span>
-          }
-        </dd>
+    <!-- Each statistic is its own group: the visible label and value are hidden
+         from AT and the group exposes ONE text item with the complete phrase
+         (see IntroExposedTextDirective), laid over the visible label AND value,
+         so Narrator reads it once and draws one box. The visible markup and
+         its look are unchanged. -->
+    <!-- role="none", no name: the tiles are the content. As a named list this was
+         announced "Interview History Summary List" before the first statistic,
+         which says nothing the statistics do not. -->
+    <dl class="ih-summary" role="none">
+      <div role="group">
+        <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Completed Interviews</dt>
+          <!-- History retains only the newest 20 attempts while the attempt number
+               keeps climbing, so once older attempts age out the lifetime total and
+               the number on file differ. Show both rather than a bare retained
+               count, which read as a miscount (e.g. "20" beside an Interview #25). -->
+          <dd>
+            {{ lifetimeCount() }}
+            @if (hasAgedOut()) {
+              <span class="ih-summary__note" i18n>· last {{ retainedCount() }} shown</span>
+            }
+          </dd>
+        </span>
+        <span [appIntroExposedText]="completedPhrase()" exposedTextMode="cover"></span>
       </div>
-      <div>
-        <dt i18n>Best Score</dt>
-        <dd>{{ trends().best }}%</dd>
+      <div role="group">
+        <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Best Score</dt>
+          <dd>{{ trends().best }}%</dd>
+        </span>
+        <span [appIntroExposedText]="bestPhrase()" exposedTextMode="cover"></span>
       </div>
-      <div>
-        <dt i18n>Average Score</dt>
-        <dd>{{ trends().average }}%</dd>
+      <div role="group">
+        <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Average Score</dt>
+          <dd>{{ trends().average }}%</dd>
+        </span>
+        <span [appIntroExposedText]="averagePhrase()" exposedTextMode="cover"></span>
       </div>
-      <div>
-        <dt i18n>Latest Score</dt>
-        <dd>{{ trends().latest }}%</dd>
+      <div role="group">
+        <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Latest Score</dt>
+          <dd>{{ trends().latest }}%</dd>
+        </span>
+        <span [appIntroExposedText]="latestPhrase()" exposedTextMode="cover"></span>
       </div>
     </dl>
 
-    <!-- Quick jump to the interviews list — shown only while the list is below
-         the fold (an IntersectionObserver hides it once the list is in view). -->
-    @if (showJumpLink()) {
-      <p class="interview-history__jump">
-        <button type="button" class="ih-jump-link" (click)="jumpToInterviews()">
-          <ng-container i18n>Jump to Interviews</ng-container>
-          <span class="ih-jump-link__arrow" aria-hidden="true">↓</span>
-        </button>
-      </p>
-    }
-
     <!-- Interviews list — placed right after the summary (above Readiness /
          Topic Trends) so your past interviews are the primary content. -->
-    <section
-      #interviewsSection
-      id="interviews"
-      class="interview-history__interviews"
-      aria-label="Your interviews"
-      i18n-aria-label
-    >
+    <!-- Deliberately unnamed: a <section> with an aria-label is a "region"
+         landmark, and Narrator announced "Your Interviews, region landmark". -->
+    <section class="interview-history__interviews">
       <!-- Filter (client-side): All / Submitted / Time Expired.
            Angular Aria Toolbar prototype: ngToolbar/ngToolbarWidgetGroup
-           supply roving tabindex + Arrow Left/Right navigation + radio-style
-           mutual exclusivity natively; `filter` stays the ONE authoritative
+           supply roving tabindex + Arrow Left/Right navigation + single
+           selection natively; `filter` stays the ONE authoritative
            signal (fed in one-way via [value], reported back via
-           valueChange — see onFilterToolbarChange). -->
+           valueChange — see onFilterToolbarChange).
+
+           The filters are toggle buttons in a named group (aria-pressed), not
+           role="radio" in a radiogroup: Narrator derives "1 of 3" from a radio
+           set, and a position count adds nothing to three labelled filters. The
+           pressed state is still announced, and the keys are unchanged. -->
       <div
         ngToolbar
         orientation="horizontal"
@@ -84,7 +94,7 @@
           ngToolbarWidgetGroup
           [multi]="false"
           class="ih-filters"
-          role="radiogroup"
+          role="group"
           aria-label="Filter interviews by completion"
           i18n-aria-label
         >
@@ -96,8 +106,7 @@
             type="button"
             class="ih-filter"
             [class.ih-filter--active]="filter() === f.id"
-            role="radio"
-            [attr.aria-checked]="w.selected()"
+            [attr.aria-pressed]="w.selected()"
           >
             {{ f.label }} <span class="ih-filter__count">({{ counts()[f.id] }})</span>
           </button>
@@ -110,50 +119,112 @@
         No interviews match this filter.
       </p>
     } @else {
-      <ul class="ih-list">
+      <!-- role="none" on the list and its items: no list semantics, so a card
+           is not announced with its position ("1 of 20"). Each card keeps its
+           own heading, which is how the cards are navigated. -->
+      <ul class="ih-list" role="none">
         @for (c of cards(); track c.entry.id) {
-          <li class="ih-card">
-            <div class="ih-card__head">
-              <h2 class="ih-card__title" i18n>Interview #{{ c.number }}</h2>
+          <li class="ih-card" role="none">
+            <!-- The card heading: the title and the status badge are ONE heading
+                 whose name is "Interview number 90, Submitted" (the visible "#"
+                 is read aloud as "hashtag", and the status would otherwise be a
+                 second stop). The visible title and badge are hidden from AT and
+                 one exposed phrase is laid over both (see
+                 IntroExposedTextDirective), so there is one stop and one box. -->
+            <h2 class="ih-card__head">
+              <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+                <span class="ih-card__title" data-intro-font-ref i18n>Interview #{{ c.number }}</span>
+                <span
+                  class="ih-card__badge"
+                  [class.ih-card__badge--expired]="c.entry.completionReason === 'time-expired'"
+                >{{ completionLabel(c.entry) }}</span>
+              </span>
               <span
-                class="ih-card__badge"
-                [class.ih-card__badge--expired]="c.entry.completionReason === 'time-expired'"
-              >{{ completionLabel(c.entry) }}</span>
+                [appIntroExposedText]="headingPhrase(c.entry, c.number)"
+                exposedTextMode="cover"
+                exposedSingleRow
+              ></span>
+            </h2>
+
+            <!-- The interview type and the date are ONE stop, "Custom Interview,
+                 November 18, 2026". The date is plain text, not a <time> element:
+                 Chromium exposes <time> with its own "time" role, and Narrator
+                 announced that word instead of the date. -->
+            <div class="ih-card__meta" role="group">
+              <div class="ih-stat__visible" data-intro-visible aria-hidden="true">
+                <!-- Role preset name, or "Custom Interview" for custom + legacy
+                     entries (which carry no preset metadata). -->
+                <p class="ih-card__kind" data-intro-font-ref>{{ interviewKindLabel(c.entry) }}</p>
+                <p class="ih-card__date">{{ formatDate(c.entry.completedAt) }}</p>
+              </div>
+              <span
+                [appIntroExposedText]="metaPhrase(c.entry)"
+                exposedTextMode="cover"
+              ></span>
             </div>
 
-            <!-- Role preset name, or "Custom Interview" for custom + legacy
-                 entries (which carry no preset metadata). -->
-            <p class="ih-card__kind">{{ interviewKindLabel(c.entry) }}</p>
-            <p class="ih-card__date">
-              <time [attr.datetime]="c.entry.completedAt">{{ formatDate(c.entry.completedAt) }}</time>
-            </p>
-
+            <!-- Same grouping as the summary above: one phrase per statistic. -->
             <dl class="ih-card__stats">
-              <div>
-                <dt i18n>Score</dt>
-                <dd>
-                  {{ c.entry.score }} / {{ c.entry.totalQuestions }}
-                  <span class="ih-card__pct">{{ c.entry.percentage }}%</span>
-                </dd>
+              <div role="group">
+                <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+                  <dt data-intro-font-ref i18n>Score</dt>
+                  <dd>
+                    {{ c.entry.score }} / {{ c.entry.totalQuestions }}
+                    <span class="ih-card__pct">{{ c.entry.percentage }}%</span>
+                  </dd>
+                </span>
+                <span
+                  [appIntroExposedText]="scorePhrase(c.entry)"
+                  exposedTextMode="cover"
+                ></span>
               </div>
-              <div>
-                <dt i18n>Duration</dt>
-                <dd>{{ duration(c.entry.durationSeconds) }}</dd>
+              <div role="group">
+                <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+                  <dt data-intro-font-ref i18n>Duration</dt>
+                  <dd>{{ duration(c.entry.durationSeconds) }}</dd>
+                </span>
+                <span
+                  [appIntroExposedText]="durationPhrase(c.entry)"
+                  exposedTextMode="cover"
+                ></span>
               </div>
-              <div>
-                <dt i18n>Difficulty</dt>
-                <dd>{{ (c.entry.configuredDifficulty || 'mixed') | titlecase }}</dd>
+              <div role="group">
+                <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+                  <dt data-intro-font-ref i18n>Difficulty</dt>
+                  <dd>{{ (c.entry.configuredDifficulty || 'mixed') | titlecase }}</dd>
+                </span>
+                <!-- Both rows of this phrase ("Difficulty," / "Mixed") are single
+                     words, which cannot be spread across the stat; one row over
+                     the group's own box covers it instead. -->
+                <span
+                  [appIntroExposedText]="difficultyPhrase(c.entry)"
+                  exposedTextMode="cover"
+                  exposedTextBox="group"
+                  exposedSingleRow
+                ></span>
               </div>
             </dl>
 
             @if (c.topics.length > 0) {
-              <div class="ih-card__topics">
-                <span class="ih-card__topics-label" i18n>Topics</span>
-                <ul class="ih-card__topic-list">
-                  @for (t of c.topics; track t) {
-                    <li class="ih-card__topic">{{ t }}</li>
-                  }
-                </ul>
+              <!-- "Topics: Forms, HTTP" is ONE reading stop: the visible label and
+                   chips are hidden from AT and one exposed phrase (see
+                   IntroExposedTextDirective) is laid over the whole block, so the
+                   topics are not read as a list with positions. -->
+              <div class="ih-card__topics" role="group">
+                <span class="ih-stat__visible" data-intro-visible aria-hidden="true">
+                  <span class="ih-card__topics-label" data-intro-font-ref i18n>Topics</span>
+                  <ul class="ih-card__topic-list">
+                    @for (t of c.topics; track t) {
+                      <li class="ih-card__topic">{{ t }}</li>
+                    }
+                  </ul>
+                </span>
+                <span
+                  [appIntroExposedText]="topicsPhrase(c.topics)"
+                  exposedTextMode="cover"
+                  exposedTextBox="group"
+                  exposedSingleRow
+                ></span>
               </div>
             }
 
@@ -172,13 +243,14 @@
                   i18n
                 >Review Answers</a>
               }
-              <a
+              <!-- A native button (as View Progress on Quiz Selection) that keeps
+                   the route: announced "View Summary, button". -->
+              <button
+                type="button"
                 class="ih-btn"
                 [routerLink]="['/interview/history', c.entry.id]"
-                [attr.aria-label]="'View summary for Interview #' + c.number"
-                i18n-aria-label
                 i18n
-              >View Summary</a>
+              >View Summary</button>
             </div>
           </li>
         }

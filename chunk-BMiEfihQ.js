@@ -1,1 +1,0 @@
-import"./chunk-C-ZEw8_6.js";import{h as R}from"./main-UPYU6MDX.js";export{R as ScrollDownIndicatorComponent};

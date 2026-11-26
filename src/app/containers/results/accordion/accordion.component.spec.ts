@@ -1597,12 +1597,12 @@ describe('AccordionComponent — Unanswered is distinct from Incorrect (consiste
     expect(comp.filteredQuestions()).toEqual([]); // a skipped question is not an incorrect answer
   });
 
-  it('an attempted incorrect answer stays Incorrect and no Unanswered button appears', async () => {
+  it('an attempted incorrect answer stays Incorrect and the Unanswered filter still shows, as 0', async () => {
     const { fixture, comp } = await renderWith([[2]]); // Q1: the wrong option was selected
     expect(comp.unansweredCount()).toBe(0);
     expect(comp.incorrectCount()).toBe(1);
     const labels = filterButtons(fixture).map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim());
-    expect(labels).toEqual(['All (2)', 'Correct (1)', 'Incorrect (1)']);
+    expect(labels).toEqual(['All (2)', 'Correct (1)', 'Incorrect (1)', 'Unanswered (0)']);
   });
 
   it('the answer row names a skipped question Unanswered and an attempted wrong one Incorrect', async () => {

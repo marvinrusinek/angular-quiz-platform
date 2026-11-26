@@ -65,10 +65,13 @@ describe('InterviewHistoryDetailComponent', () => {
   it('17. announces read-only status', () => {
     seed([entry('a1', 1)]);
     const el = render('a1').nativeElement as HTMLElement;
+    // The visible "(Read Only)" chip is hidden from AT; "Read only" is announced as part of the
+    // date line's one exposed phrase.
     const ro = el.querySelector('.ihd__readonly');
     expect(ro?.textContent).toContain('Read Only');
-    expect(ro?.getAttribute('role')).toBe('status');
-    expect(ro?.getAttribute('aria-label')).toContain('Read only');
+    expect(ro?.closest('[data-intro-visible]')?.getAttribute('aria-hidden')).toBe('true');
+    const phrase = ro?.closest('[role="group"]')?.querySelector('.intro-exposed-text')?.textContent;
+    expect(phrase).toMatch(/, Read only$/);
   });
 
   it('10. explains when a past attempt has no retrievable answers', () => {

@@ -1,25 +1,57 @@
 <div class="interview-history-detail">
   @if (found(); as f) {
-    <header class="ihd__bar">
+    <!-- Narrator-verified structure (diagnostic variant 82). Each reading stop is its own
+         group, so the eyebrow, the heading and the date are sibling groups, and none
+         is a bare paragraph next to the heading. A plain <div>, not <header>, holds
+         them. The theme toggle is FIRST in the document order and is shown on the
+         right with CSS `order`. The h1 has no tabindex and is never focused. -->
+    <div class="ihd__bar">
+      <codelab-theme-toggle class="ihd__toggle" />
       <div class="ihd__heading">
-        <p class="ihd__eyebrow" i18n>Viewing Interview</p>
-        <h1 class="ihd__title" i18n>Interview #{{ f.number }}</h1>
-        <p class="ihd__date">
-          <!-- Plain text, not <time>: Chromium exposes <time> with its own "time"
-               role and Narrator read that word as a stop before the date (same
-               fix as the Interview History cards). -->
-          <span class="ihd__date-text">{{ formatDate(f.entry.completedAt) }}</span>
+        <div class="ihd__group" role="group">
+          <div class="ihd__visible" data-intro-visible aria-hidden="true">
+            <p class="ihd__eyebrow" data-intro-font-ref i18n>Viewing Interview</p>
+          </div>
           <span
-            class="ihd__readonly"
-            role="status"
-            aria-label="Read only historical interview summary"
-            i18n-aria-label
-            i18n
-          >(Read Only)</span>
-        </p>
+            [appIntroExposedText]="eyebrowPhrase()"
+            exposedTextMode="cover"
+            exposedSingleRow
+          ></span>
+        </div>
+
+        <div class="ihd__group" role="group">
+          <!-- The same native h1 markup as the Interview Readiness page: the visible
+               "Interview #90" is hidden from AT and ONE exposed text item says
+               "Interview number 90" ("#" is otherwise read as "hashtag"). -->
+          <h1 class="readiness__heading readiness__heading--page">
+            <span class="readiness__visible" data-intro-visible aria-hidden="true">
+              <span data-intro-font-ref i18n>Interview #{{ f.number }}</span>
+            </span>
+            <span
+              [appIntroExposedText]="headingPhrase(f.number)"
+              exposedTextMode="cover"
+              exposedSingleRow
+            ></span>
+          </h1>
+        </div>
+
+        <!-- The date and "Read only" as ONE stop, "November 18, 2026, Read only". The
+             date is plain text, not <time>: Chromium exposes <time> with its own
+             "time" role and Narrator read that word as a stop before the date. -->
+        <div class="ihd__group" role="group">
+          <div class="ihd__visible" data-intro-visible aria-hidden="true">
+            <p class="ihd__date" data-intro-font-ref>
+              <span class="ihd__date-text">{{ formatDate(f.entry.completedAt) }}</span>
+              <span class="ihd__readonly" i18n>(Read Only)</span>
+            </p>
+          </div>
+          <span
+            [appIntroExposedText]="dateLinePhrase(f.entry.completedAt)"
+            exposedTextMode="cover"
+          ></span>
+        </div>
       </div>
-      <codelab-theme-toggle />
-    </header>
+    </div>
 
     <div class="ihd__card">
       <!-- "100 percent, 10 out of 10 correct" as ONE stop: the visible percentage

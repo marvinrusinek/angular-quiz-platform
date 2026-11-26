@@ -30,7 +30,31 @@
   margin-bottom: 14px;
 }
 
+// Layout of the verified structure (diagnostic variant 82): the theme toggle is first in the
+// document order and still shown on the right, via `order`.
+.ihd__bar > .ihd__toggle {
+  order: 2;
+}
+
+.ihd__heading {
+  order: 1;
+}
+
+// Each reading stop is a group that anchors its exposed Narrator text.
+.ihd__group {
+  position: relative;
+}
+
+// A stop's exposed text spans the full width of its box, last line included, so the
+// rectangle matches the visible text (same technique as the statistics below).
+.ihd__group > .intro-exposed-text {
+  text-align: justify !important;
+  text-align-last: justify !important;
+  text-justify: inter-character;
+}
+
 .ihd__eyebrow {
+  width: fit-content; // the box is the text, not the whole row
   margin: 0;
   color: var(--ir-muted);
   font-size: 12px;
@@ -271,4 +295,20 @@
   --ir-band-weak-text: #f28b84;
 
   .ihd-note { background: rgba(255, 255, 255, 0.06); }
+
+  // The "Back to Interview History" button: the page's hairline border (#363636) is nearly
+  // invisible on the dark surface. Same border, fill and hover as the Interview Readiness and
+  // Topic Trends buttons (.insight-btn). Dark only; the primary button keeps its accent fill.
+  .ih-btn:not(.ih-btn--primary) {
+    border-color: #7a7a7a;
+    background: rgba(255, 255, 255, 0.07);
+
+    &:hover {
+      background: rgba(127, 127, 127, 0.18);
+    }
+
+    &:active {
+      background: rgba(127, 127, 127, 0.28);
+    }
+  }
 }

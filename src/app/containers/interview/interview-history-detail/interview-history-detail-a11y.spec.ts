@@ -69,19 +69,52 @@ describe('InterviewHistoryDetailComponent — Narrator reading stops', () => {
     document.body.innerHTML = '';
   });
 
-  it('has one native h1 with the plain visible text "Interview #90"', () => {
-    const h1s = render().querySelectorAll('h1');
+  it('has one native h1 in its own group, with no tabindex and no focus', () => {
+    const el = render();
+    const h1s = el.querySelectorAll('h1');
     expect(h1s).toHaveLength(1);
-    expect(h1s[0].textContent!.trim()).toBe('Interview #90');
-    expect(h1s[0].querySelector('.intro-exposed-text')).toBeNull();
+    const h1 = h1s[0] as HTMLElement;
+    expect(h1.className).toBe('readiness__heading readiness__heading--page');
+    expect(h1.hasAttribute('tabindex')).toBe(false);
+    expect(h1.parentElement!.getAttribute('role')).toBe('group');
+    const visible = h1.querySelector(':scope > .readiness__visible[data-intro-visible]')!;
+    expect(visible.getAttribute('aria-hidden')).toBe('true');
+    expect(visible.textContent!.trim()).toBe('Interview #90'); // the look is unchanged
+    expect(h1.querySelector(':scope > .intro-exposed-text')!.textContent).toBe('Interview number 90');
+    expect(document.activeElement).not.toBe(h1); // never focused programmatically
   });
 
-  it('shows the date as plain text: no <time> element to be announced as "Time"', () => {
+  it('has the theme toggle FIRST in the document order, then the eyebrow, heading and date groups', () => {
+    const el = render();
+    expect(el.querySelector('header')).toBeNull();
+    const bar = el.querySelector('.ihd__bar')!;
+    expect(bar.tagName).toBe('DIV');
+    expect(bar.firstElementChild!.tagName).toBe('CODELAB-THEME-TOGGLE');
+    const groups = Array.from(bar.querySelectorAll('.ihd__heading > [role="group"]'));
+    expect(groups).toHaveLength(3);
+    expect(groups.map((g) => g.querySelector('.intro-exposed-text')!.textContent!.trim())).toEqual([
+      'Viewing Interview',
+      'Interview number 90',
+      expect.stringMatching(/2026, Read only$/)
+    ]);
+    for (const g of groups) expect(g.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+  });
+
+  it('reads "Viewing Interview" as one exposed stop with the visible words hidden', () => {
+    const group = render().querySelector('.ihd__heading > [role="group"]')!;
+    expect(group.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(group.querySelector('.ihd__eyebrow')!.textContent!.trim()).toBe('Viewing Interview');
+    expect(group.querySelector('.intro-exposed-text')!.textContent).toBe('Viewing Interview');
+  });
+
+  it('reads the date and "Read only" as one phrase, from plain text with no <time> element', () => {
     const el = render();
     expect(el.querySelector('time')).toBeNull();
-    expect(el.querySelector('.ihd__date-text')!.textContent!.trim()).toMatch(/2026/);
-    // the read-only status is still its own meaningful stop
-    expect(el.querySelector('.ihd__readonly')!.getAttribute('role')).toBe('status');
+    const group = el.querySelector('.ihd__heading > [role="group"]:last-child')!;
+    expect(group.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(group.querySelector('.ihd__date-text')!.textContent!.trim()).toMatch(/2026/);
+    expect(group.querySelector('.ihd__readonly')!.textContent!.trim()).toBe('(Read Only)');
+    expect(group.querySelector('.intro-exposed-text')!.textContent).toMatch(/^[A-Z][a-z]+ [0-9]{1,2}, 2026, Read only$/);
   });
 
   it('reads the score summary as one phrase: "100 percent, 10 out of 10 correct"', () => {
@@ -137,10 +170,4 @@ describe('InterviewHistoryDetailComponent — Narrator reading stops', () => {
   });
 
 
-  it('keeps "Viewing Interview" as the plain eyebrow line (the verified structure)', () => {
-    const eyebrow = render().querySelector('.ihd__eyebrow')!;
-    expect(eyebrow.tagName).toBe('P');
-    expect(eyebrow.textContent!.trim()).toBe('Viewing Interview');
-    expect(eyebrow.querySelector('.intro-exposed-text')).toBeNull();
-  });
 });

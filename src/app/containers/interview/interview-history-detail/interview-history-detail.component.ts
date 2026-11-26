@@ -54,7 +54,11 @@ import type { InterviewResultViewModel } from '@shared/models/interview/intervie
     ScrollDownIndicatorComponent
   ],
   templateUrl: './interview-history-detail.component.html',
-  styleUrls: ['./interview-history-detail.component.scss'],
+  // The readiness stylesheet supplies the Narrator-verified h1 classes used in the template.
+  styleUrls: [
+    './interview-history-detail.component.scss',
+    '../../../components/interview/interview-readiness/interview-readiness.component.scss'
+  ],
   encapsulation: ViewEncapsulation.None,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -175,6 +179,21 @@ export class InterviewHistoryDetailComponent {
   // ── Narrator phrases ────────────────────────────────────────────────────
   // One complete phrase per reading stop, exposed over the visible text (see
   // IntroExposedTextDirective). They say the same thing as the visible text.
+
+  /** The eyebrow line above the heading. */
+  eyebrowPhrase(): string {
+    return $localize`Viewing Interview`;
+  }
+
+  /** "November 18, 2026, Read only": the date and the read-only marker as one phrase. */
+  dateLinePhrase(iso: string): string {
+    return $localize`${this.formatDate(iso)}, Read only`;
+  }
+
+  /** "Interview number 90": "#" is spoken as "hashtag". */
+  headingPhrase(number: number): string {
+    return $localize`Interview number ${number}`;
+  }
 
   /** "100 percent, 10 out of 10 correct". */
   scorePhrase(entry: InterviewAttemptHistoryEntry): string {

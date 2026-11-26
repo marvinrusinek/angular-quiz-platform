@@ -204,12 +204,13 @@ describe('card dates', () => {
 });
 
 describe('the statistics fixes are untouched', () => {
-  it('still exposes one phrase per statistic', async () => {
+  it('still exposes one phrase per statistic and no embedded Topic Trends', async () => {
     seed([entry(70, 1), entry(90, 2)]);
     const f = await render();
     const phrases = Array.from(
       root(f).querySelectorAll('.ih-summary > [role="group"] > .intro-exposed-text')
     ).map((n) => norm(n.textContent));
     expect(phrases).toHaveLength(4);
+    expect(root(f).querySelector('#topic-trends')).toBeNull();
   });
 });

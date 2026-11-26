@@ -57,7 +57,7 @@ describe('InterviewHistoryDetailComponent', () => {
   it('9. reopens the read-only summary for the requested attempt', () => {
     seed([entry('a1', 1), entry('a2', 2)]);
     const el = render('a2').nativeElement as HTMLElement;
-    expect(el.querySelector('.ihd__title')?.textContent).toContain('Interview #2');
+    expect(el.querySelector('h1')?.textContent).toContain('Interview #2');
     expect(el.querySelector('.score-pct')?.textContent).toContain('85%');
     expect(el.querySelector('.score-sub')?.textContent).toContain('17 / 20');
   });

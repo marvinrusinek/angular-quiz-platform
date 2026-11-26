@@ -1,10 +1,20 @@
 @if (trends(); as t) {
-  <section class="topic-trends" aria-labelledby="topic-trends-heading">
+  <section
+    class="topic-trends"
+    [attr.aria-labelledby]="asPage() ? null : 'topic-trends-heading'"
+  >
     <!-- tabindex="-1": programmatically focusable only, never a Tab stop.
          Interview History's "View Topic Trends" fragment-entry focuses this
          heading directly once on arrival (see InterviewHistoryComponent's
          own focusTopicTrendsIfTargeted() comment for the full trace). -->
-    <h2 id="topic-trends-heading" class="topic-trends__heading" tabindex="-1" i18n>Topic Trends</h2>
+    <!-- The page's h1 on the dedicated Topic Trends page, an h2 when embedded.
+         tabindex="-1": programmatically focusable only, never a Tab stop; the
+         page container focuses it once after route navigation. -->
+    @if (asPage()) {
+      <h1 id="topic-trends-heading" class="topic-trends__heading" tabindex="-1" i18n>Topic Trends</h1>
+    } @else {
+      <h2 id="topic-trends-heading" class="topic-trends__heading" tabindex="-1" i18n>Topic Trends</h2>
+    }
 
     @if (!hasTopics()) {
       <p class="topic-trends__empty" role="status" i18n>
@@ -37,22 +47,47 @@
            same CSS), so the highlight should track dt's own box — the
            LABEL only, not the value, not a wrapping tile. dd stays
            `aria-hidden="true"` so it's never a second stop. -->
-      <dl class="tt-summary">
-        <div>
-          <dt role="img" [attr.aria-label]="trackedAccessibleLabel()" i18n>Topics Tracked</dt>
-          <dd aria-hidden="true">{{ t.trackedCount }}</dd>
+      <!-- UPDATE: role="img" on each dt made Narrator say "Graphic" and its box
+           followed the label only. Each statistic is now a group: the visible
+           label and value are hidden from AT and ONE exposed text item carries
+           the phrase (see IntroExposedTextDirective), laid over the label AND
+           the value, so it is one stop, one box, and no role announcement.
+           The dl is role="none": the tiles are the content. -->
+      <dl class="tt-summary" role="none">
+        <div role="group">
+          <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Topics Tracked</dt>
+            <dd>{{ t.trackedCount }}</dd>
+          </span>
+          <span [appIntroExposedText]="trackedAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
-        <div>
-          <dt role="img" [attr.aria-label]="improvingAccessibleLabel()" i18n>Improving</dt>
-          <dd aria-hidden="true">{{ t.improvingCount }}</dd>
+        <div role="group">
+          <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Improving</dt>
+            <dd>{{ t.improvingCount }}</dd>
+          </span>
+          <!-- Both rows ("Improving," / the count) are single words, which cannot be
+               spread across the tile; one row over the group's own box covers it. -->
+          <span
+            [appIntroExposedText]="improvingAccessibleLabel()"
+            exposedTextMode="cover"
+            exposedTextBox="group"
+            exposedSingleRow
+          ></span>
         </div>
-        <div>
-          <dt role="img" [attr.aria-label]="steadyAccessibleLabel()" i18n>Holding Steady</dt>
-          <dd aria-hidden="true">{{ t.steadyCount }}</dd>
+        <div role="group">
+          <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Holding Steady</dt>
+            <dd>{{ t.steadyCount }}</dd>
+          </span>
+          <span [appIntroExposedText]="steadyAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
-        <div>
-          <dt role="img" [attr.aria-label]="needsAttentionAccessibleLabel()" i18n>Needs Attention</dt>
-          <dd aria-hidden="true">{{ t.needsAttentionCount }}</dd>
+        <div role="group">
+          <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Needs Attention</dt>
+            <dd>{{ t.needsAttentionCount }}</dd>
+          </span>
+          <span [appIntroExposedText]="needsAttentionAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
       </dl>
 
@@ -80,11 +115,19 @@
       @if (visibleTopics().length === 0) {
         <p class="topic-trends__none" role="status" i18n>No topics match this filter.</p>
       } @else {
-        <ul class="tt-list">
+        <!-- role="none" on the list and its items: a card is not announced with
+             its position ("1 of 2"); each card keeps its own heading. -->
+        <ul class="tt-list" role="none">
           @for (topic of visibleTopics(); track topic.topicId) {
-            <li class="tt-card" [class]="'tt-card--' + topic.direction">
+            <li class="tt-card" role="none" [class]="'tt-card--' + topic.direction">
               <div class="tt-card__head">
-                <h3 class="tt-card__name">{{ topic.topicName }}</h3>
+                <!-- One level below the section heading: h3 under the embedded h2,
+                     h2 under the page's h1 (no skipped level). -->
+                @if (asPage()) {
+                  <h2 class="tt-card__name">{{ topic.topicName }}</h2>
+                } @else {
+                  <h3 class="tt-card__name">{{ topic.topicName }}</h3>
+                }
                 <!-- CONFIRMED (manual Narrator Scan Mode report, 2026-10-19):
                      entering a card announced a full combined .tt-card__sr
                      sentence (now removed, see the .ts file's comment on the
@@ -94,14 +137,19 @@
                      (its own box, not a new child, so the badges' flex
                      layout is untouched) — same technique already proven for
                      the score-hero and Readiness summary wrappers. -->
-                <div
-                  class="tt-card__badges"
-                  role="img"
-                  [attr.aria-label]="badgesAccessibleLabel(topic)"
-                >
-                  <!-- Strength and trend are SEPARATE concepts. -->
-                  <span class="tt-badge" [class]="'tt-badge--band-' + topic.strengthBand">{{ bandLabel(topic.strengthBand) }}</span>
-                  <span class="tt-badge" [class]="'tt-badge--dir-' + topic.direction">{{ directionLabel(topic.direction) }}</span>
+                <!-- UPDATE: role="img" is replaced by a group with ONE exposed
+                     phrase over the two badges (no "Graphic" announcement). -->
+                <div class="tt-card__badges" role="group">
+                  <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+                    <!-- Strength and trend are SEPARATE concepts. -->
+                    <span class="tt-badge" data-intro-font-ref [class]="'tt-badge--band-' + topic.strengthBand">{{ bandLabel(topic.strengthBand) }}</span>
+                    <span class="tt-badge" [class]="'tt-badge--dir-' + topic.direction">{{ directionLabel(topic.direction) }}</span>
+                  </span>
+                  <span
+                    [appIntroExposedText]="badgesAccessibleLabel(topic)"
+                    exposedTextMode="cover"
+                    exposedSingleRow
+                  ></span>
                 </div>
               </div>
 
@@ -109,32 +157,51 @@
                    confirmed technique used for .tt-summary above, now applied
                    per metric instead of hiding the whole dl behind a single
                    combined sentence. -->
-              <dl class="tt-card__metrics">
+              <dl class="tt-card__metrics" role="none">
                 <div role="group">
-                  <span class="visually-hidden-overlay">{{ latestAccessibleLabel(topic) }}</span>
-                  <dt i18n aria-hidden="true">Latest</dt>
-                  <dd aria-hidden="true">{{ topic.latestPercentage }}%</dd>
+                  <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+                    <dt data-intro-font-ref i18n>Latest</dt>
+                    <dd>{{ topic.latestPercentage }}%</dd>
+                  </span>
+                  <span
+                    [appIntroExposedText]="latestAccessibleLabel(topic)"
+                    exposedTextMode="cover"
+                  ></span>
                 </div>
                 <div role="group">
-                  <span class="visually-hidden-overlay">{{ previousAccessibleLabel(topic) }}</span>
-                  <dt i18n aria-hidden="true">Previous</dt>
-                  <dd aria-hidden="true">{{ topic.previousPercentage === null ? '—' : topic.previousPercentage + '%' }}</dd>
+                  <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+                    <dt data-intro-font-ref i18n>Previous</dt>
+                    <dd>{{ topic.previousPercentage === null ? '—' : topic.previousPercentage + '%' }}</dd>
+                  </span>
+                  <span
+                    [appIntroExposedText]="previousAccessibleLabel(topic)"
+                    exposedTextMode="cover"
+                  ></span>
                 </div>
                 <div role="group">
-                  <span class="visually-hidden-overlay">{{ changeAccessibleLabel(topic) }}</span>
-                  <dt i18n aria-hidden="true">Change</dt>
-                  <dd
-                    aria-hidden="true"
-                    [class.tt-up]="(topic.change ?? 0) > 0"
-                    [class.tt-down]="(topic.change ?? 0) < 0"
-                  >
-                    {{ changeLabel(topic.change) }}
-                  </dd>
+                  <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+                    <dt data-intro-font-ref i18n>Change</dt>
+                    <dd
+                      [class.tt-up]="(topic.change ?? 0) > 0"
+                      [class.tt-down]="(topic.change ?? 0) < 0"
+                    >
+                      {{ changeLabel(topic.change) }}
+                    </dd>
+                  </span>
+                  <span
+                    [appIntroExposedText]="changeAccessibleLabel(topic)"
+                    exposedTextMode="cover"
+                  ></span>
                 </div>
                 <div role="group">
-                  <span class="visually-hidden-overlay">{{ overallAccessibleLabel(topic) }}</span>
-                  <dt i18n aria-hidden="true">Overall</dt>
-                  <dd aria-hidden="true">{{ topic.aggregatePercentage }}%</dd>
+                  <span class="tt-stat__visible" data-intro-visible aria-hidden="true">
+                    <dt data-intro-font-ref i18n>Overall</dt>
+                    <dd>{{ topic.aggregatePercentage }}%</dd>
+                  </span>
+                  <span
+                    [appIntroExposedText]="overallAccessibleLabel(topic)"
+                    exposedTextMode="cover"
+                  ></span>
                 </div>
               </dl>
 

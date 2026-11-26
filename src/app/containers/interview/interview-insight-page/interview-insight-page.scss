@@ -1,0 +1,126 @@
+// Shared shell for the dedicated Interview Readiness and Topic Trends pages.
+// Same `--ir-*` tokens and button look as Interview History (defined locally
+// so these lazy routes are self-contained), flipping under the dark theme.
+// The app shell lays its page out as a centered flex item, which shrinks the
+// component host to its content (about 350px for the short Readiness page).
+// The hosts fill the column instead, like Interview History's wide cards do.
+codelab-interview-readiness-page,
+codelab-interview-topic-trends-page {
+  display: block;
+  width: 100%;
+}
+
+.insight-page {
+  --ir-surface: #fff;
+  --ir-border: #e0e0e0;
+  --ir-text: #1a1a1a;
+  --ir-muted: #6a6a6a;
+  --ir-accent: #007aff;
+  --ir-expired: #b5651d;
+  // Navigation bubbles: a border that stays visible at any display scale (the
+  // page's hairline --ir-border is only ~12% darker than the page, so on a
+  // high-DPI screen one link's border could render and its neighbour's vanish).
+  --insight-btn-border: #b4b4b4;
+  --insight-btn-fill: rgba(127, 127, 127, 0.08);
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 760px;
+  margin: 20px auto;
+  padding: 0 12px;
+  color: var(--ir-text);
+
+  &__bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+  }
+
+  // The shared section keeps its own top rule and spacing; on a page of its
+  // own it needs neither.
+  .readiness,
+  .topic-trends {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  &__empty {
+    margin: 0 0 16px;
+    padding: 24px 16px;
+    text-align: center;
+  }
+
+  &__title {
+    margin: 0 0 12px;
+    font-size: 26px;
+    font-weight: 800;
+
+    &:focus-visible {
+      outline: 2px solid var(--ir-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  &__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 24px;
+  }
+}
+
+[data-theme='dark'] .insight-page {
+  --ir-surface: #1e1e1e;
+  --ir-border: #363636;
+  --ir-text: #f0f0f0;
+  --ir-muted: #a0a0a0;
+  --ir-accent: #4c9dff;
+  --ir-expired: #e0a94a;
+  --insight-btn-border: #7a7a7a;
+  --insight-btn-fill: rgba(255, 255, 255, 0.07);
+}
+
+// The one bubble style for every navigation link on these pages (Interview
+// History, Interview Readiness, Topic Trends, Build an Interview). The tokens
+// carry fallbacks so a link can never lose its border and collapse to bare
+// text if a token is not inherited.
+.insight-btn {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 9px 18px;
+  border: 1px solid var(--insight-btn-border, #b4b4b4);
+  border-radius: 10px;
+  background: var(--insight-btn-fill, rgba(127, 127, 127, 0.08));
+  color: var(--ir-text, #1a1a1a);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(127, 127, 127, 0.18);
+  }
+
+  &:active {
+    background: rgba(127, 127, 127, 0.28);
+  }
+
+  &--primary {
+    background: var(--ir-accent, #007aff);
+    border-color: var(--ir-accent, #007aff);
+    color: #fff;
+
+    &:hover,
+    &:active {
+      background: var(--ir-accent, #007aff);
+      filter: brightness(1.1);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ir-accent, #007aff);
+    outline-offset: 2px;
+  }
+}

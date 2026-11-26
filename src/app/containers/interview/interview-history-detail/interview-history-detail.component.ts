@@ -18,6 +18,7 @@ import { swallow } from '@shared/utils/error-logging';
 import { InterviewAttemptHistoryEntry, InterviewDifficulty, InterviewResult } from '@shared/models';
 import { InterviewHistoryService } from '@shared/services/features/interview/interview-history.service';
 import { InterviewAnalyticsService } from '@shared/services/features/interview/interview-analytics.service';
+import { IntroExposedTextDirective } from '../../introduction/intro-exposed-text.directive';
 import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-toggle.component';
 import { TopicPerformanceListComponent } from '../../../components/interview/topic-performance/topic-performance-list.component';
 import { ScrollDownIndicatorComponent } from '../../../components/scroll-down-indicator/scroll-down-indicator.component';
@@ -46,6 +47,7 @@ import type { InterviewResultViewModel } from '@shared/models/interview/intervie
   imports: [
     TitleCasePipe,
     RouterLink,
+    IntroExposedTextDirective,
     ThemeToggleComponent,
     TopicPerformanceListComponent,
     InterviewReviewComponent,
@@ -170,6 +172,47 @@ export class InterviewHistoryDetailComponent {
   }
 
   /** "July 21, 2026" — locale-formatted, safe fallback. */
+  // ── Narrator phrases ────────────────────────────────────────────────────
+  // One complete phrase per reading stop, exposed over the visible text (see
+  // IntroExposedTextDirective). They say the same thing as the visible text.
+
+  /** "100 percent, 10 out of 10 correct". */
+  scorePhrase(entry: InterviewAttemptHistoryEntry): string {
+    return $localize`${entry.percentage} percent, ${entry.score} out of ${entry.totalQuestions} correct`;
+  }
+
+  /** "Questions, 10". */
+  statPhrase(label: string, value: number | string): string {
+    return $localize`${label}, ${value}`;
+  }
+
+  /** "Duration, 15 minutes 5 seconds" (not "15m 5s", which is read as letters). */
+  durationPhrase(seconds: number | undefined): string {
+    return this.statPhrase($localize`Duration`, this.spokenDuration(seconds));
+  }
+
+  difficultyPhrase(difficulty: string | undefined): string {
+    const value = new TitleCasePipe().transform(difficulty || 'mixed');
+    return this.statPhrase($localize`Difficulty`, value);
+  }
+
+  private spokenDuration(seconds: number | undefined): string {
+    if (seconds == null) return $localize`Not recorded`;
+    const total = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(hours === 1 ? $localize`1 hour` : $localize`${hours} hours`);
+    if (minutes > 0) {
+      parts.push(minutes === 1 ? $localize`1 minute` : $localize`${minutes} minutes`);
+    }
+    if (secs > 0 || parts.length === 0) {
+      parts.push(secs === 1 ? $localize`1 second` : $localize`${secs} seconds`);
+    }
+    return parts.join(' ');
+  }
+
   formatDate(iso: string): string {
     try {
       const d = new Date(iso);

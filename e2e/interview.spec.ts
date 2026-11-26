@@ -171,7 +171,7 @@ test.describe('Interview Mode', () => {
     await configureAndStart(page, '10');
     await answerAllAndSubmit(page, 10);
 
-    await expect(page.locator('.readiness__heading')).toHaveText(/Interview Readiness/);
+    await expect(page.locator('.readiness__heading')).toContainText('Interview Readiness');
     await expect(page.locator('.readiness__limited')).toContainText('at least one more interview');
     await expect(page.locator('.readiness__score')).toHaveCount(0);
 
@@ -203,6 +203,9 @@ test.describe('Interview Mode', () => {
     await page.goto('/interview/history');
     await expect(page.locator('.interview-history__empty')).toContainText('No completed interviews yet');
     await expect(page.locator('.readiness__score')).toHaveCount(0);
+    await page.goto('/interview/readiness');
+    await expect(page.locator('h1')).toContainText('Interview Readiness');
+    await expect(page.locator('.insight-page__empty')).toContainText('first Interview Mode');
   });
 
   test('topic trends: more-data-needed → direction after a repeat → expand → linked summary → cleared', async ({ page }) => {
@@ -215,18 +218,17 @@ test.describe('Interview Mode', () => {
     await answerAllAndSubmit(page, 10);
 
     await page.locator('a:has-text("View Topic Trends")').click();
-    await expect(page).toHaveURL(/\/interview\/history#topic-trends/);
-    await expect(page.locator('.topic-trends__heading')).toHaveText(/Topic Trends/);
+    await expect(page).toHaveURL(/\/interview\/trends$/);
+    await expect(page.locator('h1.topic-trends__heading')).toContainText('Topic Trends');
     await expect(page.locator('.tt-badge--dir-insufficient').first()).toContainText('More data needed');
     await expect(page.locator('.topic-trends__note')).toContainText('repeated topics');
 
     // 2. Second interview (same topics repeat) → a topic gets a direction + change.
-    await page.locator('a:has-text("Build an Interview")').first().click();
-    await expect(page).toHaveURL(/\/interview$/);
+    await page.goto('/interview');
     await configureAndStart(page, '10');
     await answerAllAndSubmit(page, 10);
     await page.locator('a:has-text("View Topic Trends")').click();
-    await page.locator('#topic-trends').scrollIntoViewIfNeeded();
+    await expect(page).toHaveURL(/\/interview\/trends$/);
 
     // A directional (non-insufficient) card now exists with numeric change text.
     const directional = page.locator('.tt-card:not(.tt-card--insufficient)').first();
@@ -245,6 +247,9 @@ test.describe('Interview Mode', () => {
     await page.goto('/interview/history');
     await expect(page.locator('.interview-history__empty')).toBeVisible();
     await expect(page.locator('.topic-trends')).toHaveCount(0);
+    await page.goto('/interview/trends');
+    await expect(page.locator('h1')).toContainText('Topic Trends');
+    await expect(page.locator('.topic-trends__empty')).toBeVisible();
   });
 
   test('review answers: summary, statuses, unanswered handling, filters, read-only', async ({ page }) => {

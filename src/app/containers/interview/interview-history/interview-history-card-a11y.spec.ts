@@ -364,7 +364,7 @@ describe('the interviews section', () => {
 });
 
 describe('earlier fixes are untouched', () => {
-  it('keeps the top summary phrases and the filter buttons', async () => {
+  it('keeps the top summary phrases, the filter buttons and no embedded Topic Trends', async () => {
     seed([entry(2), entry(1)]);
     const f = await render();
     const summary = Array.from(
@@ -372,5 +372,6 @@ describe('earlier fixes are untouched', () => {
     ).map((n) => norm(n.textContent));
     expect(summary[0]).toBe('Completed Interviews, 2');
     expect(root(f).querySelectorAll('.ih-filter[aria-pressed]')).toHaveLength(3);
+    expect(root(f).querySelector('#topic-trends')).toBeNull();
   });
 });

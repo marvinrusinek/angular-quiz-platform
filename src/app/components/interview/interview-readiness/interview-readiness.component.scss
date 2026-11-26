@@ -8,9 +8,43 @@
   color: var(--ir-text, #1a1a1a);
 
   &__heading {
+    position: relative; // anchors the exposed Narrator text laid over the heading
     margin: 0 0 12px;
     font-size: 20px;
     font-weight: 800;
+
+    // The page's h1 on /interview/readiness: same size as the other page titles,
+    // focused programmatically after route navigation.
+    &--page {
+      font-size: 26px;
+
+      &:focus-visible {
+        outline: 2px solid var(--ir-accent, #007aff);
+        outline-offset: 2px;
+      }
+    }
+  }
+
+  // The summary block (see the template): the group anchors the exposed Narrator
+  // text, and the wrapper around the visible content generates no box.
+  &__summary {
+    position: relative;
+
+    // The exposed text's box is what Narrator outlines, and it is only as wide as
+    // its text lines. The directive centres each line, so the longest line fell a
+    // few pixels short of the visible score and explanation on BOTH sides (5px on
+    // desktop, 3px on a phone). Justifying every line, last one included, makes
+    // each span the full width of the box, which is the width of the visible
+    // content. The wrapping and the height are unchanged. !important is needed
+    // because the directive sets text-align inline.
+    .intro-exposed-text {
+      text-align: justify !important;
+      text-align-last: justify !important;
+    }
+  }
+
+  &__visible {
+    display: contents;
   }
 
   &__limited {

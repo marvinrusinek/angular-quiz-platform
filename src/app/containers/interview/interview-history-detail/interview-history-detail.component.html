@@ -5,7 +5,10 @@
         <p class="ihd__eyebrow" i18n>Viewing Interview</p>
         <h1 class="ihd__title" i18n>Interview #{{ f.number }}</h1>
         <p class="ihd__date">
-          <time [attr.datetime]="f.entry.completedAt">{{ formatDate(f.entry.completedAt) }}</time>
+          <!-- Plain text, not <time>: Chromium exposes <time> with its own "time"
+               role and Narrator read that word as a stop before the date (same
+               fix as the Interview History cards). -->
+          <span class="ihd__date-text">{{ formatDate(f.entry.completedAt) }}</span>
           <span
             class="ihd__readonly"
             role="status"
@@ -19,21 +22,87 @@
     </header>
 
     <div class="ihd__card">
-      <div class="score-hero">
-        <div class="score-pct">{{ f.entry.percentage }}%</div>
-        <div class="score-sub">
-          {{ f.entry.score }} / {{ f.entry.totalQuestions }} <span i18n>correct</span>
+      <!-- "100 percent, 10 out of 10 correct" as ONE stop: the visible percentage
+           and tally are hidden from AT and one exposed phrase covers both. -->
+      <div class="score-hero" role="group">
+        <div class="ihd__visible" data-intro-visible aria-hidden="true">
+          <div class="score-pct">{{ f.entry.percentage }}%</div>
+          <div class="score-sub" data-intro-font-ref>
+            {{ f.entry.score }} / {{ f.entry.totalQuestions }} <span i18n>correct</span>
+          </div>
         </div>
+        <span
+          [appIntroExposedText]="scorePhrase(f.entry)"
+          exposedTextMode="cover"
+          exposedTextBox="group"
+        ></span>
       </div>
 
       <!-- Statistics we retained for this historical attempt (compact analytics). -->
-      <dl class="ihd-stats">
-        <div><dt i18n>Questions</dt><dd>{{ f.entry.totalQuestions }}</dd></div>
-        <div><dt i18n>Correct</dt><dd>{{ f.entry.score }}</dd></div>
-        <div><dt i18n>Incorrect</dt><dd>{{ f.entry.totalQuestions - f.entry.score }}</dd></div>
-        <div><dt i18n>Duration</dt><dd>{{ duration(f.entry.durationSeconds) }}</dd></div>
-        <div><dt i18n>Difficulty</dt><dd>{{ (f.entry.configuredDifficulty || 'mixed') | titlecase }}</dd></div>
-        <div><dt i18n>Completion</dt><dd>{{ completionLabel(f.entry) }}</dd></div>
+      <!-- Each statistic is one group, one stop: "Label, value" (the visible label
+           and value are hidden from AT; one exposed phrase covers the tile). The
+           dl is role="none" so no "n of 6" list position is announced. -->
+      <dl class="ihd-stats" role="none">
+        <div role="group">
+          <span class="ihd-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Questions</dt>
+            <dd>{{ f.entry.totalQuestions }}</dd>
+          </span>
+          <span
+            [appIntroExposedText]="statPhrase('Questions', f.entry.totalQuestions)"
+            exposedTextMode="cover"
+          ></span>
+        </div>
+        <div role="group">
+          <span class="ihd-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Correct</dt>
+            <dd>{{ f.entry.score }}</dd>
+          </span>
+          <span
+            [appIntroExposedText]="statPhrase('Correct', f.entry.score)"
+            exposedTextMode="cover"
+          ></span>
+        </div>
+        <div role="group">
+          <span class="ihd-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Incorrect</dt>
+            <dd>{{ f.entry.totalQuestions - f.entry.score }}</dd>
+          </span>
+          <span
+            [appIntroExposedText]="statPhrase('Incorrect', f.entry.totalQuestions - f.entry.score)"
+            exposedTextMode="cover"
+          ></span>
+        </div>
+        <div role="group">
+          <span class="ihd-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Duration</dt>
+            <dd>{{ duration(f.entry.durationSeconds) }}</dd>
+          </span>
+          <span
+            [appIntroExposedText]="durationPhrase(f.entry.durationSeconds)"
+            exposedTextMode="cover"
+          ></span>
+        </div>
+        <div role="group">
+          <span class="ihd-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Difficulty</dt>
+            <dd>{{ (f.entry.configuredDifficulty || 'mixed') | titlecase }}</dd>
+          </span>
+          <span
+            [appIntroExposedText]="difficultyPhrase(f.entry.configuredDifficulty)"
+            exposedTextMode="cover"
+          ></span>
+        </div>
+        <div role="group">
+          <span class="ihd-stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Completion</dt>
+            <dd>{{ completionLabel(f.entry) }}</dd>
+          </span>
+          <span
+            [appIntroExposedText]="statPhrase('Completion', completionLabel(f.entry))"
+            exposedTextMode="cover"
+          ></span>
+        </div>
       </dl>
 
       <app-topic-performance-list [analytics]="analytics()" />

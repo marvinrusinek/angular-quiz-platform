@@ -1,9 +1,7 @@
 <div class="interview-history">
   <header class="interview-history__bar">
     <!-- tabindex="-1": programmatically focusable only, never a Tab stop.
-         Focused once on NORMAL entry only (see focusEntryTarget()'s own
-         comment) — mutually exclusive with the topic-trends fragment case,
-         which focuses that section's own heading instead. -->
+         Focused once on entry (see focusEntryTarget()). -->
     <h1 #historyHeading class="interview-history__title" tabindex="-1" i18n>Interview History</h1>
     <codelab-theme-toggle />
   </header>
@@ -67,8 +65,8 @@
       </div>
     </dl>
 
-    <!-- Interviews list — placed right after the summary (above Readiness /
-         Topic Trends) so your past interviews are the primary content. -->
+    <!-- Interviews list — placed right after the summary so your past
+         interviews are the primary content. -->
     <!-- Deliberately unnamed: a <section> with an aria-label is a "region"
          landmark, and Narrator announced "Your Interviews, region landmark". -->
     <section class="interview-history__interviews">
@@ -260,19 +258,9 @@
 
     <hr class="ih-rule" aria-hidden="true" />
 
-    <!-- Compact readiness summary (full breakdown lives on the Results page). -->
-    <div class="interview-history__readiness">
-      <app-interview-readiness [readiness]="readiness()" [compact]="true" />
-    </div>
-
-    <hr class="ih-rule" aria-hidden="true" />
-
-    <!-- Topic Trends — per-topic direction/strength across attempts. -->
-    <div id="topic-trends" class="interview-history__topic-trends">
-      <app-interview-topic-trends [trends]="topicTrends()" />
-    </div>
-
     <div class="interview-history__footer">
+      <a class="ih-btn" routerLink="/interview/readiness" i18n>Interview Readiness</a>
+      <a class="ih-btn" routerLink="/interview/trends" i18n>Topic Trends</a>
       <a class="ih-btn" routerLink="/interview" i18n>Build an Interview</a>
       <a class="ih-btn" routerLink="/quiz" i18n>Return to Quiz Selection</a>
     </div>

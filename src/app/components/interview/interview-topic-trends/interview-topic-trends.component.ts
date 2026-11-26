@@ -6,6 +6,7 @@ import {
   signal,
   ViewEncapsulation
 } from '@angular/core';
+import { IntroExposedTextDirective } from '../../../containers/introduction/intro-exposed-text.directive';
 import { RouterLink } from '@angular/router';
 
 import {
@@ -47,7 +48,7 @@ const BAND_LABEL: Record<TopicStrengthBand, string> = {
 @Component({
   selector: 'app-interview-topic-trends',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, IntroExposedTextDirective],
   templateUrl: './interview-topic-trends.component.html',
   styleUrls: ['./interview-topic-trends.component.scss'],
   encapsulation: ViewEncapsulation.None,
@@ -55,6 +56,8 @@ const BAND_LABEL: Record<TopicStrengthBand, string> = {
 })
 export class InterviewTopicTrendsComponent {
   readonly trends = input<InterviewTopicTrendsResult | null>(null);
+  /** True on the dedicated Topic Trends page: h1 heading, no second landmark. */
+  readonly asPage = input<boolean>(false);
 
   readonly filter = signal<TopicTrendFilter>('all');
   private readonly expanded = signal<ReadonlySet<string>>(new Set());

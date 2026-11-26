@@ -1,0 +1,15 @@
+<div class="insight-page">
+  <div class="insight-page__bar">
+    <codelab-theme-toggle />
+  </div>
+
+  <!-- Renders its own empty and limited-data states. asPage makes its heading
+       this page's one h1. Content renders at once: this route is already a
+       lazy chunk, so there is nothing further to defer. -->
+  <app-interview-topic-trends [trends]="topicTrends()" [asPage]="true" />
+
+  <div class="insight-page__links">
+    <a class="insight-btn" routerLink="/interview/history" i18n>Interview History</a>
+    <a class="insight-btn" routerLink="/interview/readiness" i18n>Interview Readiness</a>
+  </div>
+</div>

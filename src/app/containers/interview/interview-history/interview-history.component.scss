@@ -111,21 +111,11 @@
   display: contents;
 }
 
-// Full-width section dividers between the analytics blocks (readiness / Topic
-// Trends) and the attempt list.
+// Full-width section dividers above the page footer links.
 .ih-rule {
   border: 0;
   border-top: 1px solid var(--ir-border);
   margin: 20px 0;
-}
-
-// Compact readiness banner (now below the interviews list).
-.interview-history__readiness {
-  margin: 0 0 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--ir-border);
-  border-radius: 12px;
-  background: var(--ir-surface);
 }
 
 // Angular Aria prototype: wraps .ih-filters's ngToolbarWidgetGroup in an

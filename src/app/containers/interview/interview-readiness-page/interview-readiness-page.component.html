@@ -1,0 +1,32 @@
+<div class="insight-page">
+  <div class="insight-page__bar">
+    <codelab-theme-toggle />
+  </div>
+
+  @if (readiness(); as current) {
+    <!-- The full (non-compact) readiness presentation, with its factor rows.
+         asPage makes its heading this page's one h1. Future personalized
+         practice recommendations belong after this block. -->
+    <app-interview-readiness [readiness]="current" [asPage]="true" />
+  } @else {
+    <!-- No completed interviews: the shared section renders nothing, so the
+         page supplies its own h1 and the empty state. -->
+    <h1 id="readiness-heading" class="insight-page__title" tabindex="-1" i18n>
+      Interview Readiness
+    </h1>
+    <p class="insight-page__empty" role="status" i18n>
+      Complete your first Interview Mode assessment to see your interview
+      readiness.
+    </p>
+  }
+
+  <div class="insight-page__links">
+    <a class="insight-btn" routerLink="/interview/history" i18n>Interview History</a>
+    <a class="insight-btn" routerLink="/interview/trends" i18n>Topic Trends</a>
+    @if (!readiness()) {
+      <a class="insight-btn insight-btn--primary" routerLink="/interview" i18n>
+        Build an Interview
+      </a>
+    }
+  </div>
+</div>

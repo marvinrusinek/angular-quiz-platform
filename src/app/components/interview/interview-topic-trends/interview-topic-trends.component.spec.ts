@@ -93,42 +93,71 @@ describe('InterviewTopicTrendsComponent', () => {
       expect(el.querySelector('.tt-card__sr')).toBeNull();
     });
 
-    it('strength + direction are one name on the existing badges wrapper (no new element)', () => {
+    it('strength + direction are ONE exposed phrase over the two visible badges (no "graphic")', () => {
       const el = render(MULTI);
       const badges = el.querySelector('.tt-card__badges') as HTMLElement;
-      expect(badges.getAttribute('role')).toBe('img');
-      expect(badges.getAttribute('aria-label')).toBe('Strength, Needs Review. Direction, Improving.');
-      // Visible badge spans are untouched — still two real <span> elements.
-      expect(badges.querySelectorAll('.tt-badge')).toHaveLength(2);
+      expect(badges.getAttribute('role')).toBe('group');
+      expect(badges.hasAttribute('aria-label')).toBe(false);
+      const items = badges.querySelectorAll(':scope > .intro-exposed-text');
+      expect(items).toHaveLength(1);
+      expect(items[0]!.textContent!.trim()).toBe('Strength, Needs Review. Direction, Improving.');
+      // The two visible badges are still two real spans, hidden from AT as one unit.
+      const visible = badges.querySelector(':scope > [data-intro-visible]')!;
+      expect(visible.getAttribute('aria-hidden')).toBe('true');
+      expect(visible.querySelectorAll('.tt-badge')).toHaveLength(2);
+      expect(el.querySelector('.tt-card [role="img"]')).toBeNull();
     });
 
-    it('groups each metric row with its real, dynamic value', () => {
+    it('groups each metric row with its real, dynamic value, as ONE exposed phrase', () => {
       const el = render(MULTI);
       const signalsCard = el.querySelector('.tt-card') as HTMLElement;
       const rows = signalsCard.querySelectorAll('.tt-card__metrics > div');
       expect(rows.length).toBe(4);
       rows.forEach((row) => expect(row.getAttribute('role')).toBe('group'));
       const phrase = (i: number) =>
-        rows[i].querySelector('.visually-hidden-overlay')?.textContent?.trim();
+        rows[i].querySelector(':scope > .intro-exposed-text')?.textContent?.trim();
       expect(phrase(0)).toBe('Latest, 60 percent');
       expect(phrase(1)).toBe('Previous, 50 percent'); // Signals: 50% -> 60%
       expect(phrase(2)).toBe('Change, up 10 points');
       expect(phrase(3)).toBe('Overall, 55 percent');
+      rows.forEach((row) => expect(row.querySelectorAll(':scope > .intro-exposed-text')).toHaveLength(1));
     });
 
     it('says "no previous attempt" rather than a number when there is none', () => {
       const el = render(SINGLE);
       const rows = el.querySelectorAll('.tt-card__metrics > div');
-      expect(rows[1].querySelector('.visually-hidden-overlay')?.textContent?.trim()).toBe(
+      expect(rows[1].querySelector(':scope > .intro-exposed-text')?.textContent?.trim()).toBe(
         'Previous, no previous attempt'
       );
     });
 
-    it('hides the real metric dt/dd from the accessibility tree so nothing is spoken twice', () => {
+    it('hides the visible metric label and value as one unit, so nothing is spoken twice', () => {
       const el = render(MULTI);
-      el.querySelectorAll('.tt-card__metrics dt, .tt-card__metrics dd').forEach((node) => {
-        expect(node.getAttribute('aria-hidden')).toBe('true');
+      el.querySelectorAll('.tt-card__metrics > div').forEach((row) => {
+        const visible = row.querySelector(':scope > [data-intro-visible]')!;
+        expect(visible.getAttribute('aria-hidden')).toBe('true');
+        expect(visible.querySelector('dt')).not.toBeNull();
+        expect(visible.querySelector('dd')).not.toBeNull();
       });
+    });
+
+    it('is not announced as a list: the metrics dl, the card list and its items carry role="none"', () => {
+      const el = render(MULTI);
+      expect(el.querySelector('.tt-card__metrics')!.getAttribute('role')).toBe('none');
+      expect(el.querySelector('ul.tt-list')!.getAttribute('role')).toBe('none');
+      el.querySelectorAll('ul.tt-list > li').forEach((li) => expect(li.getAttribute('role')).toBe('none'));
+      expect(el.querySelector('.tt-card [aria-posinset], .tt-card [aria-setsize]')).toBeNull();
+    });
+
+    it('keeps each topic heading as a real level-3 heading, before its badges and metrics', () => {
+      const el = render(MULTI);
+      const card = el.querySelector('.tt-card')!;
+      const heading = card.querySelector('h3.tt-card__name')!;
+      expect(heading.hasAttribute('aria-hidden')).toBe(false);
+      const badges = card.querySelector('.tt-card__badges')!;
+      const metrics = card.querySelector('.tt-card__metrics')!;
+      expect(heading.compareDocumentPosition(badges) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(badges.compareDocumentPosition(metrics) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('does not change the visible metric text', () => {
@@ -139,9 +168,7 @@ describe('InterviewTopicTrendsComponent', () => {
 
     it('introduces no new tabindex or live regions on the card', () => {
       const el = render(MULTI);
-      el.querySelectorAll(
-        '.tt-card [role="group"], .tt-card [role="img"], .tt-card .visually-hidden-overlay'
-      ).forEach((node) => {
+      el.querySelectorAll('.tt-card [role="group"], .tt-card .intro-exposed-text').forEach((node) => {
         expect(node.getAttribute('tabindex')).toBeNull();
         expect(node.getAttribute('aria-live')).toBeNull();
       });
@@ -172,43 +199,88 @@ describe('InterviewTopicTrendsComponent', () => {
     const dtFor = (el: HTMLElement, i: number): HTMLElement | null =>
       el.querySelectorAll<HTMLElement>('.tt-summary dt')[i] ?? null;
 
-    it('groups each stat with its real, dynamic count, as one role="img" leaf on dt', () => {
+    it('groups each stat with its real, dynamic count, as ONE exposed phrase in a group', () => {
       const el = render(MULTI);
       const rows = el.querySelectorAll('.tt-summary > div');
       expect(rows.length).toBe(4);
-      expect(dtFor(el, 0)?.getAttribute('role')).toBe('img');
-      expect(dtFor(el, 0)?.getAttribute('aria-label')).toBe('Topics Tracked, 2');
-      expect(dtFor(el, 1)?.getAttribute('aria-label')).toBe('Improving, 1');
-      expect(dtFor(el, 2)?.getAttribute('aria-label')).toBe('Holding Steady, 1');
-      expect(dtFor(el, 3)?.getAttribute('aria-label')).toBe('Needs Attention, 1');
+      rows.forEach((row) => {
+        expect(row.getAttribute('role')).toBe('group');
+        expect(row.querySelectorAll(':scope > .intro-exposed-text')).toHaveLength(1);
+      });
+      const phrases = Array.from(rows).map((r) => r.querySelector(':scope > .intro-exposed-text')!.textContent!.trim());
+      expect(phrases).toEqual(['Topics Tracked, 2', 'Improving, 1', 'Holding Steady, 1', 'Needs Attention, 1']);
     });
 
-    it('hides the real dd from the accessibility tree so the value is never a second stop; dt keeps its own visible text', () => {
+    it('has no "graphic" (role="img") and no list role on the summary', () => {
       const el = render(MULTI);
-      el.querySelectorAll('.tt-summary dd').forEach((node) => {
-        expect(node.getAttribute('aria-hidden')).toBe('true');
+      expect(el.querySelector('.tt-summary [role="img"]')).toBeNull();
+      expect(el.querySelector('.tt-summary')!.getAttribute('role')).toBe('none');
+    });
+
+    it('hides the visible label and value as one unit; both keep their visible text', () => {
+      const el = render(MULTI);
+      el.querySelectorAll('.tt-summary > div').forEach((row) => {
+        const visible = row.querySelector(':scope > [data-intro-visible]')!;
+        expect(visible.getAttribute('aria-hidden')).toBe('true');
       });
       expect(dtFor(el, 0)?.textContent?.trim()).toBe('Topics Tracked');
+      expect(el.querySelector('.tt-summary dd')?.textContent?.trim()).toBe('2');
     });
 
-    it('does not introduce a wrapping role="group" or a hidden overlay span', () => {
+    it('does not introduce a hidden overlay span', () => {
       const el = render(MULTI);
-      expect(el.querySelector('.tt-summary [role="group"]')).toBeNull();
       expect(el.querySelector('.tt-summary .visually-hidden-overlay')).toBeNull();
-    });
-
-    it('does not change the visible stat text', () => {
-      const el = render(MULTI);
-      expect(el.querySelector('.tt-summary dd')?.textContent?.trim()).toBe('2'); // Topics Tracked
     });
 
     it('introduces no new tabindex or live regions on the grouped stats', () => {
       const el = render(MULTI);
-      el.querySelectorAll('.tt-summary [role="img"]').forEach((node) => {
+      el.querySelectorAll('.tt-summary [role="group"], .tt-summary .intro-exposed-text').forEach((node) => {
         expect(node.getAttribute('tabindex')).toBeNull();
         expect(node.getAttribute('aria-live')).toBeNull();
       });
     });
+  });
+
+  it('reads in order: heading, four statistics, filters, then each card (heading, badges, four metrics, text, toggle)', () => {
+    const el = render(MULTI);
+    // what a screen reader can reach, in order: hidden subtrees skipped, one stop per exposed text
+    const stops: string[] = [];
+    const walk = (node: Node): void => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
+        if (text) stops.push(text);
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const e = node as Element;
+      if (e.getAttribute('aria-hidden') === 'true') return;
+      if (e.tagName === 'BUTTON' && e.closest('.tt-filters')) {
+        stops.push('[filter]');
+        return;
+      }
+      e.childNodes.forEach(walk);
+    };
+    el.childNodes.forEach(walk);
+    const first = stops.indexOf('Topic Trends');
+    expect(first).toBe(0);
+    expect(stops.slice(1, 5)).toEqual([
+      'Topics Tracked, 2',
+      'Improving, 1',
+      'Holding Steady, 1',
+      'Needs Attention, 1'
+    ]);
+    expect(stops.slice(5, 10).every((s) => s === '[filter]')).toBe(true);
+    const card = stops.slice(10);
+    expect(card.slice(1, 6)).toEqual([
+      'Strength, Needs Review. Direction, Improving.',
+      'Latest, 60 percent',
+      'Previous, 50 percent',
+      'Change, up 10 points',
+      'Overall, 55 percent'
+    ]);
+    // no statistic's bare label or value is a stop of its own
+    expect(stops).not.toContain('Latest');
+    expect(stops).not.toContain('Topics Tracked');
   });
 
   it('46/47. expands and collapses topic history with aria-expanded', () => {
@@ -255,5 +327,32 @@ describe('InterviewTopicTrendsComponent', () => {
     const svg = el.querySelector('.tt-spark') as SVGElement;
     expect(svg.getAttribute('viewBox')).toBe('0 0 120 36');
     expect(svg.getAttribute('width')).toBeNull();
+  });
+});
+
+describe('InterviewTopicTrendsComponent — asPage', () => {
+  function mount(asPage: boolean): HTMLElement {
+    TestBed.configureTestingModule({ imports: [InterviewTopicTrendsComponent], providers: [provideRouter([])] });
+    const f = TestBed.createComponent(InterviewTopicTrendsComponent);
+    f.componentRef.setInput('trends', MULTI);
+    f.componentRef.setInput('asPage', asPage);
+    f.detectChanges();
+    return f.nativeElement as HTMLElement;
+  }
+
+  it('renders the heading as the page h1 with no named region when asPage', () => {
+    const el = mount(true);
+    expect(el.querySelector('h1#topic-trends-heading')).not.toBeNull();
+    expect(el.querySelector('h2#topic-trends-heading')).toBeNull();
+    expect(el.querySelector('section')!.hasAttribute('aria-labelledby')).toBe(false);
+    // no skipped level: the topic names sit one level below the page h1
+    expect(el.querySelector('.tt-card__name')!.tagName).toBe('H2');
+  });
+
+  it('keeps the h2 and the named region when embedded', () => {
+    const el = mount(false);
+    expect(el.querySelector('.tt-card__name')!.tagName).toBe('H3');
+    expect(el.querySelector('h2#topic-trends-heading')).not.toBeNull();
+    expect(el.querySelector('section')!.getAttribute('aria-labelledby')).toBe('topic-trends-heading');
   });
 });

@@ -3,7 +3,7 @@
     class="readiness"
     [class.readiness--compact]="compact()"
     [class]="'readiness--' + (r.status === 'ready' ? r.band : 'insufficient')"
-    aria-labelledby="readiness-heading"
+    [attr.aria-labelledby]="asPage() ? null : 'readiness-heading'"
   >
     <!-- 2026-10-18: controlled A/B testing (aria-label present vs absent,
          Down Arrow only, same page/region as the confirmed-clean
@@ -17,7 +17,37 @@
          Performance Trends chart's accessible data list, which is under
          active investigation as a possible contributor (not yet
          established). -->
-    <h2 id="readiness-heading" class="readiness__heading" aria-label="Interview Readiness" i18n i18n-aria-label>Interview Readiness</h2>
+    <!-- UPDATE: Narrator split this heading ("Heading level 2 Interview ...
+         heading level 2 Readiness"). It was named twice (aria-label AND its
+         text), so Chromium exposed it with two name sources. It is now one real
+         h2 whose visible text is hidden from AT and ONE exposed text item
+         carries "Interview Readiness" (see IntroExposedTextDirective): one
+         text node, one stop, one box, no aria-label. When this section moves to
+         its own page and the heading becomes an h1, keep this structure and
+         change only the element. -->
+    <!-- On the dedicated page the heading is the page's h1 (and is the
+         programmatic focus target after route navigation); embedded, it is an
+         h2 and the section is a named region. Same visible and exposed text
+         either way: only the element differs. -->
+    <ng-template #headingContent>
+      <span class="readiness__visible" data-intro-visible aria-hidden="true">
+        <span data-intro-font-ref i18n>Interview Readiness</span>
+      </span>
+      <span
+        [appIntroExposedText]="headingText()"
+        exposedTextMode="cover"
+        exposedSingleRow
+      ></span>
+    </ng-template>
+    @if (asPage()) {
+      <h1 id="readiness-heading" class="readiness__heading readiness__heading--page" tabindex="-1">
+        <ng-container *ngTemplateOutlet="headingContent" />
+      </h1>
+    } @else {
+      <h2 id="readiness-heading" class="readiness__heading">
+        <ng-container *ngTemplateOutlet="headingContent" />
+      </h2>
+    }
 
     <!-- CONFIRMED (manual Narrator Scan Mode report, 2026-10-18): the score,
          band, and explanation below were announced as disconnected
@@ -36,21 +66,29 @@
          not because it's load-bearing. The heading above stays OUTSIDE this
          wrapper, untouched, so "Interview Readiness" remains a real,
          separately-navigable heading. -->
-    <div class="readiness__summary" role="img" [attr.aria-label]="ariaSummary()">
-      @if (r.status !== 'ready') {
-        <!-- Limited data: exactly one completed interview. -->
-        <p class="readiness__limited" aria-hidden="true" i18n>
-          Complete at least one more interview to calculate your readiness score.
-        </p>
-        <p class="readiness__limited-sub" aria-hidden="true" i18n>Your first result has been recorded.</p>
-      } @else {
-        <div class="readiness__score-row" aria-hidden="true">
-          <span class="readiness__score">{{ r.score }}<span class="readiness__score-max"> / 100</span></span>
-          <span class="readiness__band" [class]="'readiness__band--' + r.band">{{ bandLabel() }}</span>
-        </div>
+    <!-- UPDATE: role="img" made Narrator say "Graphic" right after the
+         explanation. The summary is now a group whose visible score, band and
+         explanation are hidden from AT, with ONE exposed text item carrying the
+         same phrase (see IntroExposedTextDirective), laid over the visible
+         block: one stop, one box, no role announcement. -->
+    <div class="readiness__summary" role="group">
+      <div class="readiness__visible" data-intro-visible aria-hidden="true">
+        @if (r.status !== 'ready') {
+          <!-- Limited data: exactly one completed interview. -->
+          <p class="readiness__limited" data-intro-width-ref i18n>
+            Complete at least one more interview to calculate your readiness score.
+          </p>
+          <p class="readiness__limited-sub" i18n>Your first result has been recorded.</p>
+        } @else {
+          <div class="readiness__score-row">
+            <span class="readiness__score">{{ r.score }}<span class="readiness__score-max"> / 100</span></span>
+            <span class="readiness__band" [class]="'readiness__band--' + r.band">{{ bandLabel() }}</span>
+          </div>
 
-        <p class="readiness__explanation" aria-hidden="true">{{ r.explanation }}</p>
-      }
+          <p class="readiness__explanation" data-intro-width-ref>{{ r.explanation }}</p>
+        }
+      </div>
+      <span [appIntroExposedText]="ariaSummary()" exposedTextMode="spread"></span>
     </div>
 
     @if (r.status === 'ready') {
@@ -93,7 +131,11 @@
 
         @if (r.recommendations.length > 0) {
           <div class="readiness__recs">
-            <h3 class="readiness__recs-heading" i18n>Recommended focus</h3>
+            @if (asPage()) {
+              <h2 class="readiness__recs-heading" i18n>Recommended focus</h2>
+            } @else {
+              <h3 class="readiness__recs-heading" i18n>Recommended focus</h3>
+            }
             <ul class="readiness__recs-list">
               @for (rec of r.recommendations; track rec) {
                 <li>{{ rec }}</li>

@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -5,6 +6,7 @@ import {
   input,
   ViewEncapsulation
 } from '@angular/core';
+import { IntroExposedTextDirective } from '../../../containers/introduction/intro-exposed-text.directive';
 
 import {
   InterviewReadiness,
@@ -48,7 +50,7 @@ const FACTOR_LABEL: Record<InterviewReadinessFactor, string> = {
 @Component({
   selector: 'app-interview-readiness',
   standalone: true,
-  imports: [],
+  imports: [IntroExposedTextDirective, NgTemplateOutlet],
   templateUrl: './interview-readiness.component.html',
   styleUrls: ['./interview-readiness.component.scss'],
   encapsulation: ViewEncapsulation.None,
@@ -58,6 +60,12 @@ export class InterviewReadinessComponent {
   readonly readiness = input<InterviewReadiness | null>(null);
   // Compact = the Interview History list banner: score + band + explanation only.
   readonly compact = input<boolean>(false);
+  /**
+   * True on the dedicated Interview Readiness page: the heading is then the
+   * page's h1 and the section is not a second landmark. Embedded uses (the
+   * Results page) keep the default h2 + named region.
+   */
+  readonly asPage = input<boolean>(false);
 
   readonly bandLabel = computed(() => {
     const r = this.readiness();
@@ -133,6 +141,9 @@ export class InterviewReadinessComponent {
    * it. The heading stays OUTSIDE this wrapper and fully real, so
    * "Interview Readiness" remains discoverable as its own heading stop.
    */
+  /** The heading's one exposed phrase; same words as the visible heading. */
+  readonly headingText = computed(() => $localize`Interview Readiness`);
+
   readonly ariaSummary = computed(() => {
     const r = this.readiness();
     if (!r) return '';

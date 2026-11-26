@@ -24,6 +24,7 @@ import { PracticeResultGuard } from './guards/practice-result-guard';
 import { WeakAreasPracticeComponent } from '../containers/practice/weak-areas-practice/weak-areas-practice.component';
 import { WeakAreasPracticeResultsComponent } from '../containers/practice/weak-areas-practice-results/weak-areas-practice-results.component';
 import { BackendInterviewResultGuard } from './guards/backend-interview-result-guard';
+import { interviewHistoryFragmentGuard } from './guards/interview-history-fragment-guard';
 import { ProgressPageComponent } from '../containers/progress/progress-page.component';
 
 export const routes: Routes = [
@@ -94,9 +95,31 @@ export const routes: Routes = [
   // Interview History — read-only record of past attempts. Deep-linkable (reads
   // the durable history store); no session/result required. `:id` reopens ONE
   // attempt's read-only summary. More specific path is listed first.
+  // Old `/interview/history#topic-trends` links are redirected by the guard.
   {
     path: 'interview/history',
-    component: InterviewHistoryComponent
+    component: InterviewHistoryComponent,
+    canActivate: [interviewHistoryFragmentGuard],
+    // A fragment change on an already-open History page (an old tab, a
+    // history entry) is not a params change: re-run the guard so it redirects.
+    runGuardsAndResolvers: 'always'
+  },
+  // Interview Readiness and Topic Trends used to be sections of Interview
+  // History; each is now its own lazy-loaded page (its own chunk, fetched on
+  // first navigation).
+  {
+    path: 'interview/readiness',
+    loadComponent: () =>
+      import(
+        '../containers/interview/interview-readiness-page/interview-readiness-page.component'
+      ).then((m) => m.InterviewReadinessPageComponent)
+  },
+  {
+    path: 'interview/trends',
+    loadComponent: () =>
+      import(
+        '../containers/interview/interview-topic-trends-page/interview-topic-trends-page.component'
+      ).then((m) => m.InterviewTopicTrendsPageComponent)
   },
   {
     path: 'interview/history/:id',

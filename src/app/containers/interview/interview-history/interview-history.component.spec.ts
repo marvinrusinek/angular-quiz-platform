@@ -129,22 +129,32 @@ describe('InterviewHistoryComponent', () => {
     }
   });
 
-  it('orders the page summary → interviews → readiness → topic trends', () => {
+  it('orders the page summary → interviews → page links, with no embedded Readiness or Topic Trends', () => {
     seed([entry(70, 1)]);
     const el = render().nativeElement as HTMLElement;
-    const nodes = [
-      '.ih-summary',
-      '.interview-history__interviews',
-      '.interview-history__readiness',
-      '#topic-trends'
-    ].map((sel) => el.querySelector(sel));
+    const nodes = ['.ih-summary', '.interview-history__interviews', '.interview-history__footer'].map(
+      (sel) => el.querySelector(sel)
+    );
     for (const n of nodes) expect(n).not.toBeNull();
-    // The interviews list contains the cards, and each section precedes the next.
     expect(el.querySelector('.interview-history__interviews .ih-card')).not.toBeNull();
     for (let i = 0; i < nodes.length - 1; i++) {
       const rel = nodes[i]!.compareDocumentPosition(nodes[i + 1]!);
       expect(rel & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
+    // They live on their own pages now.
+    expect(el.querySelector('app-interview-readiness, .readiness')).toBeNull();
+    expect(el.querySelector('app-interview-topic-trends, .topic-trends, #topic-trends')).toBeNull();
+  });
+
+  it('links to the dedicated Interview Readiness and Topic Trends pages with real anchors', () => {
+    seed([entry(70, 1)]);
+    const el = render().nativeElement as HTMLElement;
+    const links = Array.from(el.querySelectorAll<HTMLAnchorElement>('.interview-history__footer a'));
+    const byText = (t: string) => links.find((a) => a.textContent?.trim() === t);
+    expect(byText('Interview Readiness')?.getAttribute('href')).toBe('/interview/readiness');
+    expect(byText('Topic Trends')?.getAttribute('href')).toBe('/interview/trends');
+    expect(el.querySelectorAll('main, [role="main"]').length).toBe(0); // the single <main> is the app shell's
+    expect(el.querySelectorAll('h1').length).toBe(1);
   });
 
   it('has no "Jump to Interviews" link or button, however long the page is', () => {
@@ -307,90 +317,29 @@ describe('InterviewHistoryComponent — filter Angular Aria Toolbar prototype', 
 });
 
 /**
- * CONFIRMED (manual Narrator reports, 2026-10-19), two separate issues:
- * (1) activating "View Topic Trends" (fragment="topic-trends") landed
- * here with Narrator reading the entire page from the top instead of
- * announcing the Topic Trends section — FIXED and manually confirmed.
- * (2) normal entry (no fragment) opened at the top correctly, but
- * Narrator then automatically read the entire page with no further key
- * presses — nothing here ever focused anything on a plain entry either.
- * See ngOnInit's and focusEntryTarget()'s own comments in the component
- * for the full trace of both. The two entry paths are mutually exclusive
- * by construction: exactly one branch in focusEntryTarget() ever moves
- * focus.
+ * Entry focus: opening Interview History focuses its own h1 once (tabindex
+ * "-1", never a Tab stop) and scrolls to the top, so Narrator has a real target
+ * instead of auto-reading the whole page. (The old `#topic-trends` fragment
+ * entry moved with the section: see interview-history-fragment-guard.spec.ts.)
  */
-describe('InterviewHistoryComponent — entry focus (normal vs. topic-trends fragment)', () => {
-  // jsdom does not implement Element.scrollIntoView at all — the property
-  // doesn't exist, so jest.spyOn can't wrap it; it has to be
-  // assigned directly. Defined on the prototype since the target element
-  // doesn't exist until after render.
-  beforeEach(() => {
-    localStorage.clear();
-    HTMLElement.prototype.scrollIntoView = jest.fn();
-  });
-  afterEach(() => {
-    localStorage.clear();
-    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
-  });
+describe('InterviewHistoryComponent — entry focus', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
 
-  async function renderWithFragment(
-    fragment?: string
-  ): Promise<ComponentFixture<InterviewHistoryComponent>> {
-    const fixture = render(fragment);
+  async function renderEntry(): Promise<ComponentFixture<InterviewHistoryComponent>> {
+    const fixture = render();
     await fixture.whenStable();
     fixture.detectChanges();
     return fixture;
   }
 
-  it('focuses the real Topic Trends heading once, without adding a new Tab stop', async () => {
-    seed([entry(70, 1), entry(80, 2)]);
-    const fixture = await renderWithFragment('topic-trends');
-    const heading = fixture.nativeElement.querySelector('#topic-trends-heading') as HTMLElement;
-    expect(document.activeElement).toBe(heading);
-    expect(heading.getAttribute('tabindex')).toBe('-1');
-  });
-
-  it('skips the scroll-to-top call specifically when targeting the topic-trends fragment', async () => {
+  it("focuses this page's own heading once, without adding a Tab stop, and scrolls to top", async () => {
     seed([entry(70, 1), entry(80, 2)]);
     const scrollSpy = jest.spyOn(window, 'scrollTo').mockImplementation(() => {});
-    await renderWithFragment('topic-trends');
-    expect(scrollSpy).not.toHaveBeenCalled();
-    scrollSpy.mockRestore();
-  });
-
-  it('never leaves focus on the page heading when the topic-trends fragment was targeted (mutually exclusive)', async () => {
-    seed([entry(70, 1), entry(80, 2)]);
-    const fixture = await renderWithFragment('topic-trends');
-    const pageHeading = fixture.nativeElement.querySelector('.interview-history__title');
-    expect(document.activeElement).not.toBe(pageHeading);
-  });
-
-  it('focuses this page\'s own real heading once on normal entry (no fragment), without adding a new Tab stop', async () => {
-    seed([entry(70, 1), entry(80, 2)]);
-    const scrollSpy = jest.spyOn(window, 'scrollTo').mockImplementation(() => {});
-    const fixture = await renderWithFragment(undefined);
+    const fixture = await renderEntry();
     const pageHeading = fixture.nativeElement.querySelector('.interview-history__title') as HTMLElement;
     expect(document.activeElement).toBe(pageHeading);
     expect(pageHeading.getAttribute('tabindex')).toBe('-1');
-    expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0 });
-    scrollSpy.mockRestore();
-  });
-
-  it('never focuses the Topic Trends heading on normal entry (mutually exclusive)', async () => {
-    seed([entry(70, 1), entry(80, 2)]);
-    const fixture = await renderWithFragment(undefined);
-    const topicTrendsHeading = fixture.nativeElement.querySelector('#topic-trends-heading');
-    expect(document.activeElement).not.toBe(topicTrendsHeading);
-  });
-
-  it('focuses this page\'s own heading (not Topic Trends) for an unrelated fragment, and still scrolls to top', async () => {
-    seed([entry(70, 1), entry(80, 2)]);
-    const scrollSpy = jest.spyOn(window, 'scrollTo').mockImplementation(() => {});
-    const fixture = await renderWithFragment('some-other-fragment');
-    const pageHeading = fixture.nativeElement.querySelector('.interview-history__title') as HTMLElement;
-    const topicTrendsHeading = fixture.nativeElement.querySelector('#topic-trends-heading');
-    expect(document.activeElement).toBe(pageHeading);
-    expect(document.activeElement).not.toBe(topicTrendsHeading);
     expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0 });
     scrollSpy.mockRestore();
   });

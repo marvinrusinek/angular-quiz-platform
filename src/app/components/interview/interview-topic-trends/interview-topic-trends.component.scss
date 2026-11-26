@@ -10,8 +10,13 @@
     font-size: 20px;
     font-weight: 800;
 
-    // Programmatically focused on fragment entry (see
-    // InterviewHistoryComponent's own comment) — same explicit outline
+    // The page's h1 on /interview/trends matches the other page titles.
+    &:is(h1) {
+      font-size: 26px;
+    }
+
+    // Programmatically focused after route navigation to /interview/trends —
+    // same explicit outline
     // convention already used for other programmatically-focused headings
     // in this codebase, rather than relying on the browser's UA default.
     &:focus-visible {
@@ -58,6 +63,18 @@
   white-space: nowrap;
 }
 
+// Holds a statistic's label and value so they can be hidden from AT as one
+// unit; it generates no box, so the layout is exactly as before.
+.tt-stat__visible {
+  display: contents;
+}
+
+// The groups anchor the exposed Narrator text laid over them.
+.tt-card__metrics > div,
+.tt-card__badges {
+  position: relative;
+}
+
 .tt-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -65,6 +82,7 @@
   margin: 0 0 14px;
 
   > div {
+    position: relative; // anchors the exposed Narrator text
     text-align: center;
     padding: 10px 6px;
     border: 1px solid var(--ir-border, #e0e0e0);

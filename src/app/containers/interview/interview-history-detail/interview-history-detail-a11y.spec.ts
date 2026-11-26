@@ -117,6 +117,18 @@ describe('InterviewHistoryDetailComponent — Narrator reading stops', () => {
     expect(group.querySelector('.intro-exposed-text')!.textContent).toMatch(/^[A-Z][a-z]+ [0-9]{1,2}, 2026, Read only$/);
   });
 
+  it('reads the unavailable-answers message as ONE exposed stop with the visible text hidden', () => {
+    const note = render().querySelector('.ihd-note')!;
+    const message =
+      'Detailed answers are unavailable because the original interview session is no longer accessible. Your interview summary has been preserved.';
+    const flat = (text: string | null): string => (text ?? '').split(/\s+/).filter(Boolean).join(' ');
+    expect(note.getAttribute('role')).toBe('note');
+    expect(note.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(flat(note.querySelector('.ihd-note__text')!.textContent)).toBe(message);
+    expect(note.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+    expect(flat(note.querySelector('.intro-exposed-text')!.textContent)).toBe(message);
+  });
+
   it('reads the score summary as one phrase: "100 percent, 10 out of 10 correct"', () => {
     const el = render();
     const hero = el.querySelector('.score-hero')!;

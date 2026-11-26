@@ -169,12 +169,20 @@
           Loading your answers&hellip;
         </p>
       } @else {
-        <!-- The answers live on the server, and this attempt's are no longer
-             retrievable — the session has been cleaned up. The summary above is
-             unaffected. -->
-        <p class="ihd-note" role="note" i18n>
-          Detailed answers are no longer available for this interview.
-        </p>
+        <!-- The answers live on the server, and the key that opens them lived only in the
+             session of the tab the interview was taken in, so this attempt's are no longer
+             retrievable. The summary above is unaffected. The two sentences are ONE stop: the
+             visible text is hidden from AT and one exposed item carries the same message (see
+             IntroExposedTextDirective), so Narrator reads it whole with one rectangle. -->
+        <div class="ihd-note" role="note">
+          <div class="ihd__visible" data-intro-visible aria-hidden="true">
+            <p class="ihd-note__text" data-intro-width-ref i18n>
+              Detailed answers are unavailable because the original interview session is no
+              longer accessible. Your interview summary has been preserved.
+            </p>
+          </div>
+          <span [appIntroExposedText]="unavailableNotePhrase()" exposedTextMode="cover"></span>
+        </div>
       }
     </div>
 

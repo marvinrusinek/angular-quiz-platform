@@ -180,6 +180,11 @@ export class InterviewHistoryDetailComponent {
   // One complete phrase per reading stop, exposed over the visible text (see
   // IntroExposedTextDirective). They say the same thing as the visible text.
 
+  /** Shown instead of the review when this attempt's answers cannot be fetched. */
+  unavailableNotePhrase(): string {
+    return $localize`Detailed answers are unavailable because the original interview session is no longer accessible. Your interview summary has been preserved.`;
+  }
+
   /** The eyebrow line above the heading. */
   eyebrowPhrase(): string {
     return $localize`Viewing Interview`;

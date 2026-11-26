@@ -47,6 +47,7 @@
 
 // A stop's exposed text spans the full width of its box, last line included, so the
 // rectangle matches the visible text (same technique as the statistics below).
+.ihd-note > .intro-exposed-text,
 .ihd__group > .intro-exposed-text {
   text-align: justify !important;
   text-align-last: justify !important;
@@ -224,6 +225,7 @@
 }
 
 .ihd-note {
+  position: relative; // anchors the exposed Narrator text laid over the message
   margin: 16px 0 0;
   padding: 10px 14px;
   border-radius: 8px;
@@ -231,6 +233,10 @@
   color: var(--ir-muted);
   font-size: 13px;
   font-weight: 600;
+}
+
+.ihd-note__text {
+  margin: 0; // the note's own padding sets the spacing, as before
 }
 
 .ihd__actions {

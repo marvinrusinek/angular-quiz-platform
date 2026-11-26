@@ -1,10 +1,15 @@
 @use '../../../variables' as vars;
 
 .quiz-search {
+  --quiz-search-gap: 10px;
+  --quiz-search-padding: 18px;
+  --quiz-search-icon-size: 22px;
+  --quiz-search-input-padding: 2px;
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 18px;
+  gap: var(--quiz-search-gap);
+  padding: 9px var(--quiz-search-padding);
   min-width: 300px;
   background: vars.$white;
   border: 1px solid vars.$medium-gray;
@@ -19,9 +24,9 @@
 
   .search-icon {
     color: vars.$dodger-blue;
-    font-size: 22px;
-    width: 22px;
-    height: 22px;
+    font-size: var(--quiz-search-icon-size);
+    width: var(--quiz-search-icon-size);
+    height: var(--quiz-search-icon-size);
   }
 
   .search-input {
@@ -29,13 +34,37 @@
     border: none;
     outline: none;
     background: transparent;
+    padding: 1px var(--quiz-search-input-padding);
+    font-family: Arial, sans-serif;
     font-size: 16px;
     min-width: 200px;
     color: vars.$black;
 
-    &::placeholder {
-      color: vars.$gray;
-    }
+  }
+
+  // Only the native input supplies the accessible name and editable value.
+  .search-placeholder {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: calc(
+      var(--quiz-search-padding) + var(--quiz-search-input-padding)
+    );
+    inset-inline-end: var(--quiz-search-padding);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    font: 400 16px Arial, sans-serif;
+    color: vars.$gray;
+  }
+
+  &.quiz-search--with-icon .search-placeholder {
+    inset-inline-start: calc(
+      var(--quiz-search-padding) + var(--quiz-search-input-padding) +
+      var(--quiz-search-icon-size) + var(--quiz-search-gap)
+    );
   }
 
   // Dark theme: this component owns the input, so a parent rule cannot reach

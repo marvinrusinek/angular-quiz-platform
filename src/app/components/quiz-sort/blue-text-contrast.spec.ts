@@ -34,8 +34,12 @@ describe('Filter and sort controls — blue text contrast', () => {
     sort.indexOf('}', sort.indexOf('.quiz-sort .sort-btn {'))
   );
   const sortColor = /\bcolor:\s*(#[0-9a-f]{6})/i.exec(sortBlock)?.[1];
-  const filterColor =
-    /--mat-select-enabled-trigger-text-color:\s*(#[0-9a-f]{6})/i.exec(filter)?.[1];
+  // The difficulty filter is a native select: its text colour is set on the control itself.
+  const filterBlock = filter.slice(
+    filter.indexOf('.difficulty-select {'),
+    filter.indexOf('}', filter.indexOf('.difficulty-select {'))
+  );
+  const filterColor = /\bcolor:\s*(#[0-9a-f]{6})/i.exec(filterBlock)?.[1];
 
   it('the old blue really was below AA (guards the premise)', () => {
     expect(contrast(OLD_BLUE, WHITE)).toBeLessThan(4.5);

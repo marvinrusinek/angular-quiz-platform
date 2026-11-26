@@ -1,23 +1,21 @@
 <!-- The VISIBLE value is the current filter ("All Difficulties" by default, then
      Beginner / Intermediate / Advanced) — that is what communicates the state.
-     The tooltip and the accessible name say what the control DOES, and are the same
-     fixed text whichever difficulty is selected (identical text also stops
-     Material announcing it twice). MatSelect exposes the selected value and the
-     open/closed state itself. -->
-<mat-select
+     A NATIVE <select> (candidate): the browser supplies the combobox semantics, the arrow keys, type-ahead and the
+     selected value. The tooltip and the accessible name say what the control DOES and are the same fixed text whichever
+     difficulty is selected (identical text also stops the tooltip being announced as a second description). -->
+<select
+  #tip="matTooltip"
   class="difficulty-select"
   [value]="difficulty()"
-  (selectionChange)="onSelectionChange($event.value)"
+  (change)="onSelectionChange($any($event.target).value)"
+  (mousedown)="tip.hide(0)"
   matTooltip="Filter quizzes by difficulty"
   i18n-matTooltip
-  [matTooltipDisabled]="panelOpen()"
   aria-label="Filter quizzes by difficulty"
   i18n-aria-label
-  [panelWidth]="null"
-  (openedChange)="panelOpen.set($event)"
 >
-  <mat-option value="all" i18n>All Difficulties</mat-option>
-  <mat-option value="beginner" i18n>Beginner</mat-option>
-  <mat-option value="intermediate" i18n>Intermediate</mat-option>
-  <mat-option value="advanced" i18n>Advanced</mat-option>
-</mat-select>
+  <option value="all" i18n>All Difficulties</option>
+  <option value="beginner" i18n>Beginner</option>
+  <option value="intermediate" i18n>Intermediate</option>
+  <option value="advanced" i18n>Advanced</option>
+</select>

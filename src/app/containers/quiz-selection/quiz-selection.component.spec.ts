@@ -2132,10 +2132,10 @@ describe('QuizSelectionComponent — difficulty filter', () => {
 
   type Ctx = Awaited<ReturnType<typeof render>>;
   const el = (c: Ctx): HTMLElement => c.fixture.nativeElement;
-  const selectHost = (c: Ctx): HTMLElement =>
-    el(c).querySelector('.toolbar app-quiz-difficulty-filter mat-select')!;
+  const selectHost = (c: Ctx): HTMLSelectElement =>
+    el(c).querySelector('.toolbar app-quiz-difficulty-filter select')!;
   const selectShows = (c: Ctx): string =>
-    (el(c).querySelector('.toolbar .mat-mdc-select-value')?.textContent ?? '')
+    (selectHost(c).options[selectHost(c).selectedIndex]?.textContent ?? '')
       .replace(/\s+/g, ' ')
       .trim();
   const difficultyBtn = (c: Ctx): HTMLButtonElement =>
@@ -2164,17 +2164,13 @@ describe('QuizSelectionComponent — difficulty filter', () => {
     await c.fixture.whenStable();
     c.fixture.detectChanges();
   }
-  /** Choose an option in the REAL select, the way a user does. */
+  /** Choose an option in the REAL (native) select, the way the browser reports it: set the value, fire "change". */
   async function chooseDifficulty(
     c: Ctx,
     value: 'all' | 'beginner' | 'intermediate' | 'advanced'
   ): Promise<void> {
-    (el(c).querySelector('.toolbar .mat-mdc-select-trigger') as HTMLElement).click();
-    c.fixture.detectChanges();
-    const option = Array.from(document.querySelectorAll<HTMLElement>('mat-option')).find(
-      (o) => o.textContent!.trim() === LABEL[value]
-    )!;
-    option.click();
+    selectHost(c).value = value;
+    selectHost(c).dispatchEvent(new Event('change', { bubbles: true }));
     await settle(c);
   }
   /** Type into the REAL search box. */
@@ -2575,11 +2571,11 @@ describe('QuizSelectionComponent — difficulty filter', () => {
 
     it('preserves input focus when selecting a difficulty too', async () => {
       const c = await render();
+      selectHost(c).focus();
       await chooseDifficulty(c, 'beginner');
-      // chooseDifficulty's own click flow moves focus into the option list
-      // and back to the trigger — confirm the trigger (not some other
-      // element) ends up focused, not the toolbar being disrupted.
-      expect(document.activeElement).toBe(selectHost(c).querySelector('[role="combobox"]') ?? selectHost(c));
+      // The native select keeps focus when its value changes — confirm the select (not some other
+      // element) is still focused, i.e. the toolbar is not disrupted.
+      expect(document.activeElement).toBe(selectHost(c));
     });
 
     /**
@@ -2765,33 +2761,25 @@ describe('QuizSelectionComponent — difficulty filter', () => {
   });
 
   describe('keyboard and accessibility', () => {
-    it('is a combobox named "Filter quizzes by difficulty" that exposes the selected value and its open state', async () => {
+    it('is a native select named "Filter quizzes by difficulty" that exposes the selected value', async () => {
       const c = await render();
 
-      expect(selectHost(c).getAttribute('role')).toBe('combobox');
+      expect(selectHost(c).tagName).toBe('SELECT');
+      expect(selectHost(c).hasAttribute('role')).toBe(false);
       expect(selectHost(c).getAttribute('aria-label')).toBe('Filter quizzes by difficulty');
-      expect(selectHost(c).getAttribute('aria-expanded')).toBe('false');
       expect(selectShows(c)).toBe('All Difficulties');
 
       await chooseDifficulty(c, 'advanced');
       expect(selectShows(c)).toBe('Advanced'); // the state is text, not just colour
     });
 
-    it('can be operated from the keyboard: the arrow keys change the filter and the list follows', async () => {
+    it('can be operated from the keyboard: the browser changes the native select value and the list follows', async () => {
       const c = await render();
       selectHost(c).focus();
       expect(document.activeElement).toBe(selectHost(c));
 
-      selectHost(c).dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key: 'ArrowDown',
-          code: 'ArrowDown',
-          keyCode: 40,
-          bubbles: true,
-          cancelable: true
-        })
-      );
-      await settle(c);
+      // The browser reports a keyboard choice (arrow keys, type-ahead) as a change of the native select.
+      await chooseDifficulty(c, 'beginner');
 
       expect(c.comp.difficultyFilter()).toBe('beginner');
       expect(renderedIds(c)).toEqual(ONLY.beginner.az);
@@ -2804,7 +2792,7 @@ describe('QuizSelectionComponent — difficulty filter', () => {
 
       expect(focusable.every((e) => e.tabIndex >= 0)).toBe(true);
       const order = Array.from(
-        el(c).querySelectorAll('.toolbar input, .toolbar mat-select, .toolbar .sort-btn')
+        el(c).querySelectorAll('.toolbar input, .toolbar select, .toolbar .sort-btn')
       );
       expect(order.slice(0, 4)).toEqual(focusable);
     });

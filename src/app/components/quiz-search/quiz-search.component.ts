@@ -15,6 +15,10 @@ import { MatIconModule } from '@angular/material/icon';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class QuizSearchComponent {
+  // Id of the hidden span that names the input; unique per instance.
+  private static nextId = 0;
+  readonly nameId = `quiz-search-name-${QuizSearchComponent.nextId++}`;
+
   // Current text (owned by the parent; this component is a controlled input).
   readonly searchTerm = input('');
   // Presentation toggles.

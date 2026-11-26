@@ -1,4 +1,4 @@
-<div class="quiz-search">
+<div class="quiz-search" [class.quiz-search--with-icon]="showIcon()">
   @if (showIcon()) {
     <mat-icon
       class="search-icon"
@@ -8,15 +8,20 @@
     </mat-icon>
   }
 
+  <!-- The input's name is an explicit ARIA reference to this permanent hidden span (always present: empty, typed and
+       cleared). It is not a native label/for association, and it is hidden so it is not exposed as separate text. -->
+  <span [id]="nameId" hidden i18n>Search quizzes</span>
   <input
     type="text"
     class="search-input"
     [value]="searchTerm()"
     (input)="onInput($any($event.target).value)"
-    [placeholder]="placeholder()"
-    aria-label="Search quizzes"
-    i18n-aria-label
+    [attr.aria-labelledby]="nameId"
   />
+
+  @if (!searchTerm() && placeholder()) {
+    <span class="search-placeholder" aria-hidden="true">{{ placeholder() }}</span>
+  }
 
   @if (showClear() && searchTerm()) {
     <button

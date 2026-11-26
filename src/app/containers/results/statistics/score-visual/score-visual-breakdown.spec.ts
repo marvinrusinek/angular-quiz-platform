@@ -46,8 +46,13 @@ describe('ScoreVisualComponent — score breakdown group', () => {
   it('hides the visible rows from assistive technology and keeps their symbols and colours', () => {
     const visible = group().querySelector('[data-intro-visible]')!;
     expect(visible.getAttribute('aria-hidden')).toBe('true');
-    expect(visibleRows()).toEqual(['✔ 7 Correct', '✖ 0 Incorrect', '⏱ 0 Timed Out']);
-    for (const cls of ['correct', 'incorrect', 'timed-out']) {
+    expect(visibleRows()).toEqual([
+      '✔ 7 Correct',
+      '✖ 0 Incorrect',
+      '⏱ 0 Timed Out',
+      '○ 0 Unanswered'
+    ]);
+    for (const cls of ['correct', 'incorrect', 'timed-out', 'unanswered']) {
       expect(visible.querySelector('.breakdown-item.' + cls)).not.toBeNull();
     }
   });
@@ -55,7 +60,7 @@ describe('ScoreVisualComponent — score breakdown group', () => {
   it('exposes exactly ONE text node, one line per row, outside the hidden wrapper', () => {
     expect(exposed().childNodes).toHaveLength(1);
     expect(exposed().firstChild?.nodeType).toBe(Node.TEXT_NODE);
-    expect(exposed().textContent).toBe('7 Correct\n0 Incorrect\n0 Timed Out');
+    expect(exposed().textContent).toBe('7 Correct\n0 Incorrect\n0 Timed Out\n0 Unanswered');
     expect(exposed().closest('[aria-hidden="true"]')).toBeNull();
   });
 
@@ -63,7 +68,7 @@ describe('ScoreVisualComponent — score breakdown group', () => {
     const c = fixture.componentInstance;
     expect(exposed().textContent).toBe(c.breakdownExposedText());
     expect(c.breakdownExposedText()).toBe(
-      [c.correctText(), c.incorrectText(), c.timedOutText()].join('\n')
+      [c.correctText(), c.incorrectText(), c.timedOutText(), c.unansweredText()].join('\n')
     );
     // Every visible row is its signal text plus the symbol, and nothing else.
     expect(visibleRows().map((r) => r.slice(2))).toEqual(c.breakdownExposedText().split('\n'));
@@ -71,8 +76,13 @@ describe('ScoreVisualComponent — score breakdown group', () => {
 
   it('follows the real counts', () => {
     setCounts(3, 4, 2);
-    expect(visibleRows()).toEqual(['✔ 3 Correct', '✖ 4 Incorrect', '⏱ 2 Timed Out']);
-    expect(exposed().textContent).toBe('3 Correct\n4 Incorrect\n2 Timed Out');
+    expect(visibleRows()).toEqual([
+      '✔ 3 Correct',
+      '✖ 4 Incorrect',
+      '⏱ 2 Timed Out',
+      '○ 0 Unanswered'
+    ]);
+    expect(exposed().textContent).toBe('3 Correct\n4 Incorrect\n2 Timed Out\n0 Unanswered');
     expect(exposed().childNodes).toHaveLength(1);
   });
 
@@ -96,13 +106,37 @@ describe('ScoreVisualComponent — Unanswered row', () => {
     root = fixture.nativeElement as HTMLElement;
   });
 
-  it('adds nothing when every question was attempted (the three rows are unchanged)', () => {
+  it('always shows Unanswered, as "0 Unanswered" when every question was attempted', () => {
     fixture.componentRef.setInput('correctCount', 5);
     fixture.componentRef.setInput('incorrectCount', 2);
     fixture.detectChanges();
     TestBed.tick();
-    expect(rows()).toEqual(['✔ 5 Correct', '✖ 2 Incorrect', '⏱ 0 Timed Out']);
-    expect(exposed()).toBe('5 Correct\n2 Incorrect\n0 Timed Out');
+    expect(rows()).toEqual([
+      '✔ 5 Correct',
+      '✖ 2 Incorrect',
+      '⏱ 0 Timed Out',
+      '○ 0 Unanswered'
+    ]);
+    expect(exposed()).toBe('5 Correct\n2 Incorrect\n0 Timed Out\n0 Unanswered');
+  });
+
+  it('shows "0 Unanswered" when every question is answered correctly (every zero is shown)', () => {
+    fixture.componentRef.setInput('correctCount', 10);
+    fixture.componentRef.setInput('incorrectCount', 0);
+    fixture.componentRef.setInput('timedOutCount', 0);
+    fixture.componentRef.setInput('unansweredCount', 0);
+    fixture.detectChanges();
+    TestBed.tick();
+    expect(rows()).toEqual([
+      '✔ 10 Correct',
+      '✖ 0 Incorrect',
+      '⏱ 0 Timed Out',
+      '○ 0 Unanswered'
+    ]);
+    expect(exposed()).toBe('10 Correct\n0 Incorrect\n0 Timed Out\n0 Unanswered');
+    // hidden from AT like the other rows: only the one exposed item is announced
+    expect(root.querySelector('.breakdown-item.unanswered')!.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(root.querySelectorAll('.score-breakdown .intro-exposed-text')).toHaveLength(1);
   });
 
   it('shows skipped questions as Unanswered, in the visible rows and the single exposed text', () => {

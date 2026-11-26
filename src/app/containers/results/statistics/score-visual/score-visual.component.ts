@@ -4,7 +4,7 @@ import { IntroExposedTextDirective } from '../../../introduction/intro-exposed-t
 
 /**
  * Presentational-only score visuals for the results screen: the circular SVG
- * score ring + percentage, the Correct/Incorrect/Timed-Out breakdown, the star
+ * score ring + percentage, the Correct/Incorrect/Timed-Out/Unanswered breakdown, the star
  * rating and the achievement badge. All numbers are computed by the parent
  * StatisticsComponent and passed in via signal inputs — this component holds NO
  * business logic. The host uses `display: contents` so its children participate
@@ -58,7 +58,7 @@ export class ScoreVisualComponent {
       this.correctText(),
       this.incorrectText(),
       this.timedOutText(),
-      ...(this.unansweredCount() > 0 ? [this.unansweredText()] : [])
+      this.unansweredText()
     ].join('\n')
   );
 }

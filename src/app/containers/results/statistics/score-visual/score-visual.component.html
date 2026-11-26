@@ -36,15 +36,14 @@
 <!-- Score Breakdown: one group, one exposed text item. The visible rows are
      hidden from AT; the group exposes ONE text node sized to them (see
      IntroExposedTextDirective), so Narrator reads "N Correct, N Incorrect,
-     N Timed Out" once as a group, draws one box, and moves on. -->
+     N Timed Out, N Unanswered" once as a group, draws one box, and moves on.
+     All four rows are always shown, including when a value is zero. -->
 <div class="score-breakdown" role="group">
   <div class="score-breakdown-visible" data-intro-visible aria-hidden="true">
     <span class="breakdown-item correct">✔ {{ correctText() }}</span>
     <span class="breakdown-item incorrect">✖ {{ incorrectText() }}</span>
     <span class="breakdown-item timed-out">⏱ {{ timedOutText() }}</span>
-    @if (unansweredCount() > 0) {
-      <span class="breakdown-item unanswered">○ {{ unansweredText() }}</span>
-    }
+    <span class="breakdown-item unanswered">○ {{ unansweredText() }}</span>
   </div>
   <span [appIntroExposedText]="breakdownExposedText()" exposedTextMode="justify"></span>
 </div>

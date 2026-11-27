@@ -34,6 +34,8 @@ import { norm } from '@shared/utils/text-norm';
 import { wasQuestionAttempted } from '@shared/utils/question-attempt';
 import { swallow } from '@shared/utils/error-logging';
 import { CodeSnippetComponent } from '../../../components/code-snippet/code-snippet.component';
+import { ReviewFilterVerticalKeysDirective } from './review-filter-vertical-keys.directive';
+import { IntroExposedTextDirective } from '../../introduction/intro-exposed-text.directive';
 import { ReviewHeaderDirective } from './review-header.directive';
 
 export type ReviewFilter = 'all' | 'incorrect' | 'correct' | 'unanswered';
@@ -60,7 +62,9 @@ const asSentenceEnd = (text: string): string => (endsWithTerminalPunctuation(tex
     Toolbar,
     ToolbarWidget,
     ToolbarWidgetGroup,
-    CodeSnippetComponent
+    CodeSnippetComponent,
+    IntroExposedTextDirective,
+    ReviewFilterVerticalKeysDirective
   ],
   templateUrl: './accordion.component.html',
   styleUrls: ['./accordion.component.scss'],

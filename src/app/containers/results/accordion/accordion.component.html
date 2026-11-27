@@ -21,6 +21,7 @@
        see onReviewFilterToolbarChange). -->
   <div
     ngToolbar
+    codelabLetVerticalKeysPass
     orientation="horizontal"
     class="review-filter-toolbar"
     [value]="[reviewFilter()]"
@@ -30,7 +31,7 @@
       ngToolbarWidgetGroup
       [multi]="false"
       class="review-filter"
-      role="radiogroup"
+      role="group"
       aria-label="Filter reviewed questions"
       i18n-aria-label
     >
@@ -41,8 +42,7 @@
         type="button"
         class="review-filter-btn"
         [class.active]="reviewFilter() === 'all'"
-        role="radio"
-        [attr.aria-checked]="wAll.selected()"
+        [attr.aria-pressed]="wAll.selected()"
         i18n
       >All ({{ questions().length }})</button>
       <button
@@ -52,8 +52,7 @@
         type="button"
         class="review-filter-btn"
         [class.active]="reviewFilter() === 'correct'"
-        role="radio"
-        [attr.aria-checked]="wCorrect.selected()"
+        [attr.aria-pressed]="wCorrect.selected()"
         i18n
       >Correct ({{ correctCount() }})</button>
       <button
@@ -63,8 +62,7 @@
         type="button"
         class="review-filter-btn"
         [class.active]="reviewFilter() === 'incorrect'"
-        role="radio"
-        [attr.aria-checked]="wIncorrect.selected()"
+        [attr.aria-pressed]="wIncorrect.selected()"
         i18n
       >Incorrect ({{ incorrectCount() }})</button>
       <button
@@ -74,8 +72,7 @@
         type="button"
         class="review-filter-btn"
         [class.active]="reviewFilter() === 'unanswered'"
-        role="radio"
-        [attr.aria-checked]="wUnanswered.selected()"
+        [attr.aria-pressed]="wUnanswered.selected()"
         i18n
       >Unanswered ({{ unansweredCount() }})</button>
     </div>
@@ -148,24 +145,16 @@
               [filename]="snippet.filename"
             />
           }
-          <!-- Detail rows: each row is ONE named image (role="img" +
-               aria-label = the row's sentence; the answer row adds
-               ", Correct" / ", Incorrect"). Its visible content (bold label,
-               value, check/X icon) is presentational to assistive tech, so
-               Narrator reads the whole row as a single stop and highlights
-               its whole box. Known limitations (experimental): the row's text
-               is not navigable word by word, the name repeats the visible
-               sentence, and Narrator announces "graphic" after the row. -->
+          <!-- Detail rows: each row is one group. Its visible content (bold label, value, check/X icon) is hidden from
+               assistive technology and the group exposes ONE text node, the row's sentence (the answer row adds
+               ", Correct" / ", Incorrect"), laid out over the visible row (see IntroExposedTextDirective). Narrator reads
+               the row as a single stop with one box and no "graphic" (an image role was announced as "graphic"). -->
           <div class="quiz-summary-fields">
             <!-- USER ANSWERS -->
-            <div class="quiz-summary-row">
+            <div class="quiz-summary-row" role="group">
               @let answer = yourAnswerRow(question, i);
               @let answerRow = splitRow(answer.text);
-              <span
-                class="quiz-summary-text"
-                role="img"
-                [attr.aria-label]="answer.name"
-              >
+              <span class="quiz-summary-text" data-intro-visible data-intro-font-ref aria-hidden="true">
                 <span class="quiz-summary-label">{{ answerRow.label }}</span>
                 {{ answerRow.value }}@switch (answer.state) {
                   @case ('correct') {
@@ -177,53 +166,44 @@
                   @default {
                     <i class="material-icons incorrect" aria-hidden="true">clear</i>
                   }
-                }</span
-              >
+                }</span>
+              <span [appIntroExposedText]="answer.name" exposedTextMode="cover" exposedTextBox="group"></span>
             </div>
 
             <!-- CORRECT ANSWERS -->
-            <div class="quiz-summary-row">
+            <div class="quiz-summary-row" role="group">
               @let correctText = correctAnswerRowText(question, i);
               @let correctRow = splitRow(correctText);
-              <span
-                class="quiz-summary-text"
-                role="img"
-                [attr.aria-label]="correctText"
-              >
+              <span class="quiz-summary-text" data-intro-visible data-intro-font-ref aria-hidden="true">
                 <span class="quiz-summary-label">{{ correctRow.label }}</span>
-                {{ correctRow.value }}</span
-              >
+                {{ correctRow.value }}</span>
+              <span [appIntroExposedText]="correctText" exposedTextMode="cover" exposedTextBox="group"></span>
             </div>
 
             <!-- EXPLANATION -->
-            <div class="quiz-summary-row">
+            <div class="quiz-summary-row" role="group">
               @let explanationText = explanationRowText(question, i);
               @let explanationRow = splitRow(explanationText);
-              <span
-                class="quiz-summary-text"
-                role="img"
-                [attr.aria-label]="explanationText"
-              >
+              <span class="quiz-summary-text" data-intro-visible data-intro-font-ref aria-hidden="true">
                 <span class="quiz-summary-label">{{ explanationRow.label }}</span>
-                {{ explanationRow.value }}</span
-              >
+                {{ explanationRow.value }}</span>
+              <span [appIntroExposedText]="explanationText" exposedTextMode="cover" exposedTextBox="group"></span>
             </div>
 
             <!-- ELAPSED TIME -->
-            <div class="quiz-summary-row">
+            <div class="quiz-summary-row" role="group">
               @let elapsedText = elapsedTimeRowText(i);
               @let elapsedRow = splitRow(elapsedText);
-              <span
-                class="quiz-summary-text"
-                role="img"
-                [attr.aria-label]="elapsedText"
-              >
+              <span class="quiz-summary-text" data-intro-visible data-intro-font-ref aria-hidden="true">
                 <span class="quiz-summary-label">{{ elapsedRow.label }}</span>
-                {{ elapsedRow.value }}</span
-              >
+                {{ elapsedRow.value }}</span>
+              <span [appIntroExposedText]="elapsedText" exposedTextMode="cover" exposedTextBox="group" exposedSingleRow></span>
             </div>
           </div>
         </div>
+        <!-- Decorative bottom spacing, outside the body that holds the detail rows (it used to be the body's
+             bottom padding, which Narrator included in the last row's rectangle). -->
+        <div class="qr-body-spacer" aria-hidden="true"></div>
       }
     </div>
   }

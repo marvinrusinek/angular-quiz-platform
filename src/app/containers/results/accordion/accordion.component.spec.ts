@@ -95,6 +95,12 @@ function filterButtons(fixture: ComponentFixture<AccordionComponent>): HTMLButto
   return [...fixture.nativeElement.querySelectorAll('.review-filter-btn')] as HTMLButtonElement[];
 }
 
+const visibleText = (el: Element): string => {
+  const c = el.cloneNode(true) as HTMLElement;
+  c.querySelectorAll('.intro-exposed-text').forEach((e) => e.remove());
+  return (c.textContent ?? '').replace(/\s+/g, ' ').trim();
+};
+
 describe('AccordionComponent — Review filter Angular Aria Toolbar prototype', () => {
   it('correctness split is deterministic from the crafted fixture: Q1 incorrect, Q2 correct', async () => {
     const { comp } = await render();
@@ -102,20 +108,22 @@ describe('AccordionComponent — Review filter Angular Aria Toolbar prototype', 
     expect(comp.incorrectCount()).toBe(1);
   });
 
-  it('initial selected filter is "all", correctly reflected as the checked radio', async () => {
+  it('initial selected filter is "all", correctly reflected as the pressed button', async () => {
     const { fixture } = await render();
     const buttons = filterButtons(fixture);
-    const checked = buttons.filter((b) => b.getAttribute('aria-checked') === 'true');
+    const checked = buttons.filter((b) => b.getAttribute('aria-pressed') === 'true');
     expect(checked).toHaveLength(1);
     expect(checked[0].textContent).toContain('All');
   });
 
-  it('the group exposes role=radiogroup and each button role=radio (mutually-exclusive semantics)', async () => {
+  it('the group exposes role=group and each filter is a toggle button with aria-pressed (no radio semantics, so Narrator keeps scanning past it)', async () => {
     const { fixture } = await render();
     const group = fixture.nativeElement.querySelector('.review-filter');
-    expect(group.getAttribute('role')).toBe('radiogroup');
+    expect(group.getAttribute('role')).toBe('group');
     for (const btn of filterButtons(fixture)) {
-      expect(btn.getAttribute('role')).toBe('radio');
+      expect(btn.hasAttribute('role')).toBe(false);
+      expect(btn.hasAttribute('aria-checked')).toBe(false);
+      expect(btn.getAttribute('aria-pressed')).toMatch(/^(true|false)$/);
     }
   });
 
@@ -135,7 +143,7 @@ describe('AccordionComponent — Review filter Angular Aria Toolbar prototype', 
 
     expect(comp.reviewFilter()).toBe('correct');
     expect(comp.filteredQuestions().map((q) => q.question.questionText)).toEqual(['Q2']);
-    expect(correctBtn.getAttribute('aria-checked')).toBe('true');
+    expect(correctBtn.getAttribute('aria-pressed')).toBe('true');
     // The counts themselves are untouched by which filter is active.
     expect(comp.correctCount()).toBe(before.correct);
     expect(comp.incorrectCount()).toBe(before.incorrect);
@@ -285,7 +293,8 @@ describe('AccordionComponent — Explanation was/were and Elapsed Time second/se
     ([...fixture.nativeElement.querySelectorAll('.quiz-summary-row')] as HTMLElement[]).filter((row) =>
       (row.querySelector('.quiz-summary-text')?.textContent ?? '').startsWith(label)
     );
-  const norm = (el: HTMLElement): string => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+  /** The row's VISIBLE text (the exposed, spoken text node is excluded). */
+  const norm = (el: HTMLElement): string => visibleText(el);
   /** The row value: its text after the "<label>: " prefix (label and value are ONE text node now). */
   const valueOf = (row: HTMLElement): string =>
     norm(row.querySelector('.quiz-summary-text') as HTMLElement).replace(/^[^:]+:\s*/, '');
@@ -539,7 +548,7 @@ describe('AccordionComponent — detail rows are not a list (Variant D)', () => 
       for (const r of rows) {
         const spans = r.querySelectorAll('.quiz-summary-text');
         expect(spans).toHaveLength(1);
-        expect(spans[0].getAttribute('role')).toBe('img');
+        expect(spans[0].getAttribute('aria-hidden')).toBe('true'); // hidden from AT; the row group exposes the one spoken text node
         expect((spans[0].childNodes[0] as HTMLElement).classList.contains('quiz-summary-label')).toBe(true);
         expect([...spans[0].childNodes].filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())).toHaveLength(1);
         expect(r.querySelector('.leader')).toBeNull();
@@ -556,9 +565,9 @@ describe('AccordionComponent — detail rows are not a list (Variant D)', () => 
   it('answered INCORRECT: icon-only look; the clear icon is an image named "Incorrect"; no verdict text in the sentence', async () => {
     const f = await mount(SELECTIONS);
     const row = answerRow(f, 0);
-    const img = row.querySelector('.quiz-summary-text[role="img"]')!;
+    const img = row.querySelector('.quiz-summary-text')!;
     expect(plain(img)).toBe('Your Answer: Option 2: B');
-    expect(img.getAttribute('aria-label')).toBe('Your Answer: Option 2: B, Incorrect');
+    expect(img.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answer: Option 2: B, Incorrect');
     expect(img.querySelector('i.incorrect')!.getAttribute('aria-hidden')).toBe('true');
     expect(row.querySelector('i.correct')).toBeNull();
   });
@@ -566,9 +575,9 @@ describe('AccordionComponent — detail rows are not a list (Variant D)', () => 
   it('answered CORRECT: icon-only look; the done icon is an image named "Correct"; no verdict text in the sentence', async () => {
     const f = await mount(SELECTIONS);
     const row = answerRow(f, 1);
-    const img = row.querySelector('.quiz-summary-text[role="img"]')!;
+    const img = row.querySelector('.quiz-summary-text')!;
     expect(plain(img)).toBe('Your Answer: Option 1: A');
-    expect(img.getAttribute('aria-label')).toBe('Your Answer: Option 1: A, Correct');
+    expect(img.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answer: Option 1: A, Correct');
     expect(img.querySelector('i.correct')!.getAttribute('aria-hidden')).toBe('true');
     expect(row.querySelector('i.incorrect')).toBeNull();
   });
@@ -577,7 +586,7 @@ describe('AccordionComponent — detail rows are not a list (Variant D)', () => 
     const f = await mount(SELECTIONS);
     const row = answerRow(f, 2);
     expect(norm2(row)).toContain('(no answer provided)');
-    expect(row.querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
+    expect(row.querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answers: (no answer provided), Unanswered');
     // nothing follows "(no answer provided)": no icon and no dash of any kind.
     expect(row.querySelector('i')).toBeNull();
     expect(norm2(row)).toBe('Your Answers: (no answer provided)');
@@ -598,7 +607,7 @@ const plain = (el: Element): string => {
   c.querySelectorAll('i').forEach((i) => i.remove());
   return (c.textContent ?? '').replace(/\s+/g, ' ').trim();
 };
-const norm2 = (el: Element): string => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+const norm2 = (el: Element): string => visibleText(el);
 const rowsOf = (f: ComponentFixture<AccordionComponent>, i: number): HTMLElement[] =>
   [...f.nativeElement.querySelectorAll(`#qr-body-${i} .quiz-summary-row`)] as HTMLElement[];
 
@@ -691,14 +700,14 @@ describe('AccordionComponent — consolidated detail row sentences (Variant D)',
       'Explanation: Option 1 was correct because because.',
       'Elapsed Time: 1 second'
     ]);
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answer: Option 1: A, Correct');
+    expect(answerRow(f, 0).querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answer: Option 1: A, Correct');
   });
 
   it('incorrect selection: shows the picked option and an incorrect icon image named "Incorrect"', async () => {
     const f = await mount([single('Q1')], new Map([[0, [{ optionId: 2, text: 'B' }]]]), [], [30]);
     expect(rowTexts(f, 0)[0]).toBe('Your Answer: Option 2: B');
     expect(rowTexts(f, 0)[3]).toBe('Elapsed Time: 30 seconds');
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answer: Option 2: B, Incorrect');
+    expect(answerRow(f, 0).querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answer: Option 2: B, Incorrect');
   });
 
   it('multi-answer: lists both options, "Options 1 and 3", and "were"', async () => {
@@ -714,7 +723,7 @@ describe('AccordionComponent — consolidated detail row sentences (Variant D)',
       'Explanation: Options 1 and 3 were correct because both are needed.',
       'Elapsed Time: 2 seconds'
     ]);
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe(
+    expect(answerRow(f, 0).querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe(
       'Your Answers: Option 1: A, Option 3: C, Correct'
     );
   });
@@ -722,21 +731,21 @@ describe('AccordionComponent — consolidated detail row sentences (Variant D)',
   it('stored-answers fallback (no live selection): "Option 1 — A", marked correct', async () => {
     const f = await mount([single('Q1')], new Map(), [[1]], [0]);
     expect(rowTexts(f, 0)[0]).toBe('Your Answer: Option 1 — A');
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answer: Option 1 — A, Correct');
+    expect(answerRow(f, 0).querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answer: Option 1 — A, Correct');
     expect(rowTexts(f, 0)[3]).toBe('Elapsed Time: 0 seconds');
   });
 
   it('stored-answers fallback with a wrong answer is marked Incorrect', async () => {
     const f = await mount([single('Q1')], new Map(), [[2]], [0]);
     expect(rowTexts(f, 0)[0]).toBe('Your Answer: Option 2 — B');
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answer: Option 2 — B, Incorrect');
+    expect(answerRow(f, 0).querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answer: Option 2 — B, Incorrect');
   });
 
   it('unanswered: "(no answer provided)" and a neutral icon image named "Unanswered"', async () => {
     const f = await mount([single('Q1')], new Map(), [], []);
     expect(rowTexts(f, 0)[0]).toBe('Your Answers: (no answer provided)');
     expect(rowTexts(f, 0)[3]).toBe('Elapsed Time: 0 seconds');
-    expect(answerRow(f, 0).querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
+    expect(answerRow(f, 0).querySelector('.quiz-summary-text')!.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answers: (no answer provided), Unanswered');
   });
 
   it('empty explanation omits the "because" clause (no dangling full stop)', async () => {
@@ -755,7 +764,7 @@ describe('AccordionComponent — consolidated detail row sentences (Variant D)',
       const spans = [...f.nativeElement.querySelectorAll(`#qr-body-${i} .quiz-summary-text`)] as HTMLElement[];
       expect(spans).toHaveLength(4);
       for (const s of spans) {
-        expect(s.getAttribute('role')).toBe('img');
+        expect(s.getAttribute('aria-hidden')).toBe('true');
         expect((s.childNodes[0] as HTMLElement).classList.contains('quiz-summary-label')).toBe(true);
         expect([...s.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())).toHaveLength(1);
       }
@@ -932,7 +941,7 @@ describe('AccordionComponent — singular/plural answer labels', () => {
     const img = row.querySelector('.quiz-summary-text') as HTMLElement;
     return {
       label: row.querySelector('.quiz-summary-label')!.textContent!.trim(),
-      aria: img.getAttribute('aria-label')!
+      aria: img.parentElement!.querySelector('.intro-exposed-text')!.textContent
     };
   };
 
@@ -1010,15 +1019,20 @@ describe('AccordionComponent — singular/plural answer labels', () => {
     expect(rowOf(f, 1, 1).label).toBe('Correct Answers:');
   });
 
-  it('keeps role="img" on all four rows, with no roledescription', async () => {
+  it('every detail row is a group with ONE exposed text node and no image role (so Narrator does not say "graphic")', async () => {
     const f = await mount(QUESTIONS, SELECTIONS);
-    const imgs = f.nativeElement.querySelectorAll(
-      '#qr-body-0 .quiz-summary-text[role="img"]'
-    );
-    expect(imgs).toHaveLength(4);
-    for (const img of imgs) {
-      expect(img.hasAttribute('aria-roledescription')).toBe(false);
-      expect(img.getAttribute('aria-label')!.length).toBeGreaterThan(0);
+    const body = f.nativeElement.querySelector('#qr-body-0') as HTMLElement;
+    expect(body.querySelector('[role="img"], svg, img')).toBeNull();
+    const rows = body.querySelectorAll('.quiz-summary-row');
+    expect(rows).toHaveLength(4);
+    for (const row of Array.from(rows)) {
+      expect(row.getAttribute('role')).toBe('group');
+      expect(row.querySelector('.quiz-summary-text')!.getAttribute('aria-hidden')).toBe('true');
+      const exposed = row.querySelectorAll('.intro-exposed-text');
+      expect(exposed).toHaveLength(1);
+      expect(exposed[0].childNodes).toHaveLength(1);
+      expect(exposed[0].closest('[aria-hidden="true"]')).toBeNull();
+      expect(exposed[0].textContent!.length).toBeGreaterThan(0);
     }
   });
 });
@@ -1120,7 +1134,7 @@ describe('AccordionComponent — explanation from the Results analysis', () => {
     )[2] as HTMLElement;
     return {
       text: (span.textContent ?? '').replace(/\s+/g, ' ').trim(),
-      aria: span.getAttribute('aria-label')!
+      aria: span.parentElement!.querySelector('.intro-exposed-text')!.textContent
     };
   };
 
@@ -1196,7 +1210,7 @@ describe('AccordionComponent — explanation from the Results analysis', () => {
       clone.querySelectorAll('i').forEach((i) => i.remove());
       const visible = (clone.textContent ?? '').replace(/\s+/g, ' ').trim();
       // the answer row's name adds the verdict after the visible sentence
-      expect(s.getAttribute('aria-label')!.startsWith(visible)).toBe(true);
+      expect(s.parentElement!.querySelector('.intro-exposed-text')!.textContent.startsWith(visible)).toBe(true);
     }
     expect(explRow(f, 0).aria).toBe(explRow(f, 0).text);
   });
@@ -1210,7 +1224,7 @@ describe('AccordionComponent — explanation from the Results analysis', () => {
       'Your Answers:', 'Correct Answer:', 'Explanation:', 'Elapsed Time:'
     ]);
     expect(
-      f.nativeElement.querySelectorAll('#qr-body-0 .quiz-summary-text[role="img"]')
+      f.nativeElement.querySelectorAll('#qr-body-0 .quiz-summary-text')
     ).toHaveLength(4);
   });
 });
@@ -1327,7 +1341,7 @@ describe('AccordionComponent — reveal by question state', () => {
     );
   const aria = (f: ComponentFixture<AccordionComponent>, k: number): string[] =>
     [...f.nativeElement.querySelectorAll(`#qr-body-${k} .quiz-summary-text`)].map(
-      (e) => (e as HTMLElement).getAttribute('aria-label')!
+      (e) => (e as HTMLElement).parentElement!.querySelector('.intro-exposed-text')!.textContent
     );
 
   it('answered correctly: answer, correct option and explanation', async () => {
@@ -1513,7 +1527,7 @@ describe('AccordionComponent — reveal by question state', () => {
       expect(names[0].startsWith(visible[0])).toBe(true);
       for (const n of [1, 2, 3]) expect(names[n]).toBe(visible[n]);
       expect(
-        f.nativeElement.querySelectorAll(`#qr-body-${k} .quiz-summary-text[role="img"]`)
+        f.nativeElement.querySelectorAll(`#qr-body-${k} .quiz-summary-text`)
       ).toHaveLength(4);
     }
   });
@@ -1541,7 +1555,7 @@ describe('AccordionComponent — reveal by question state', () => {
     expect(aria(f, 0)[0]).toBe(answerBefore); // the verdict wording is unchanged
     expect(aria(f, 0)[1]).toBe(rows(f, 0)[1]);
     expect(
-      f.nativeElement.querySelectorAll('#qr-body-0 .quiz-summary-text[role="img"]')
+      f.nativeElement.querySelectorAll('#qr-body-0 .quiz-summary-text')
     ).toHaveLength(4);
   });
 });
@@ -1609,15 +1623,15 @@ describe('AccordionComponent — Unanswered is distinct from Incorrect (consiste
     const skipped = await renderWith([]);
     (skipped.fixture.nativeElement.querySelectorAll('.qr-header')[0] as HTMLElement).click();
     skipped.fixture.detectChanges();
-    const skippedRow = skipped.fixture.nativeElement.querySelector('#qr-body-0 [role="img"]') as HTMLElement;
-    expect(skippedRow.getAttribute('aria-label')).toBe('Your Answers: (no answer provided), Unanswered');
+    const skippedRow = skipped.fixture.nativeElement.querySelector('#qr-body-0 .quiz-summary-text') as HTMLElement;
+    expect(skippedRow.parentElement!.querySelector('.intro-exposed-text')!.textContent).toBe('Your Answers: (no answer provided), Unanswered');
     expect(skippedRow.querySelector('i')).toBeNull(); // no icon and no dash after the text
 
     const attempted = await renderWith([[2]]);
     (attempted.fixture.nativeElement.querySelectorAll('.qr-header')[0] as HTMLElement).click();
     attempted.fixture.detectChanges();
-    const attemptedRow = attempted.fixture.nativeElement.querySelector('#qr-body-0 [role="img"]') as HTMLElement;
-    expect(attemptedRow.getAttribute('aria-label')).toContain(', Incorrect');
+    const attemptedRow = attempted.fixture.nativeElement.querySelector('#qr-body-0 .quiz-summary-text') as HTMLElement;
+    expect(attemptedRow.parentElement!.querySelector('.intro-exposed-text')!.textContent).toContain(', Incorrect');
     expect(attemptedRow.querySelector('i.incorrect')).not.toBeNull();
   });
 });

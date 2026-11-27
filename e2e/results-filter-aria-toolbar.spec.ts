@@ -60,10 +60,10 @@ test('Results review filter: keyboard Tab/Arrow/Enter navigation, mouse click, a
 
   const group = page.locator('.review-filter');
   await group.waitFor({ state: 'visible', timeout: 20_000 });
-  await expect(group).toHaveAttribute('role', 'radiogroup');
+  await expect(group).toHaveAttribute('role', 'group');
 
   const buttons = page.locator('.review-filter-btn');
-  await expect(buttons).toHaveCount(3);
+  await expect(buttons).toHaveCount(4); // All, Correct, Incorrect and Unanswered (always shown, even at 0)
 
   // 1-2. Tab into the group; initial focus lands on the currently-checked
   // item ("All"), the group's single native Tab stop (roving tabindex).
@@ -80,7 +80,7 @@ test('Results review filter: keyboard Tab/Arrow/Enter navigation, mouse click, a
   }
   const allBtn = buttons.nth(0);
   await expect(allBtn).toBeFocused();
-  await expect(allBtn).toHaveAttribute('aria-checked', 'true');
+  await expect(allBtn).toHaveAttribute('aria-pressed', 'true');
 
   // Visible focus indicator: an outline actually painted, not "none".
   const outlineStyle = await allBtn.evaluate((el) => getComputedStyle(el).outlineStyle);
@@ -91,7 +91,7 @@ test('Results review filter: keyboard Tab/Arrow/Enter navigation, mouse click, a
   const correctBtn = buttons.nth(1);
   await expect(correctBtn).toBeFocused();
   // Moving focus alone must not change the selection/filter yet.
-  await expect(allBtn).toHaveAttribute('aria-checked', 'true');
+  await expect(allBtn).toHaveAttribute('aria-pressed', 'true');
 
   // 4. Arrow Left moves focus back to "All".
   await page.keyboard.press('ArrowLeft');
@@ -100,8 +100,8 @@ test('Results review filter: keyboard Tab/Arrow/Enter navigation, mouse click, a
   // 5. The documented keyboard interaction (Enter) changes the selection.
   await page.keyboard.press('ArrowRight'); // focus -> "Correct"
   await page.keyboard.press('Enter');
-  await expect(correctBtn).toHaveAttribute('aria-checked', 'true');
-  await expect(allBtn).toHaveAttribute('aria-checked', 'false');
+  await expect(correctBtn).toHaveAttribute('aria-pressed', 'true');
+  await expect(allBtn).toHaveAttribute('aria-pressed', 'false');
 
   // 6. Selecting "Correct" actually changes the displayed application
   // results — assert via the filter button's own live count, which is
@@ -115,8 +115,8 @@ test('Results review filter: keyboard Tab/Arrow/Enter navigation, mouse click, a
   // 7. Mouse selection still works: click "Incorrect" directly.
   const incorrectBtn = buttons.nth(2);
   await incorrectBtn.click();
-  await expect(incorrectBtn).toHaveAttribute('aria-checked', 'true');
-  await expect(correctBtn).toHaveAttribute('aria-checked', 'false');
+  await expect(incorrectBtn).toHaveAttribute('aria-pressed', 'true');
+  await expect(correctBtn).toHaveAttribute('aria-pressed', 'false');
 
   // 8. Focus indicator remains visible after a mouse-driven selection change.
   await expect(incorrectBtn).toBeFocused();

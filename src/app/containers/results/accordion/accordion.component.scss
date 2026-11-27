@@ -84,7 +84,7 @@
 
   .qr-body {
     display: flow-root; // contain the list's top margin like Material's overflow-hidden content wrapper
-    padding: 0 24px 16px;
+    padding: 0 24px; // the old 16px bottom padding is the .qr-body-spacer below, outside the body
     font-family: Roboto, sans-serif;
     font-size: 14px;
     font-weight: 400;
@@ -95,6 +95,11 @@
     @media (prefers-reduced-motion: reduce) {
       animation: none;
     }
+  }
+
+  // The body's former 16px bottom padding, as a decorative sibling after it.
+  .qr-body-spacer {
+    height: 16px;
   }
 
   .qr-title {
@@ -187,6 +192,7 @@
       margin-left: 30px;
 
       .quiz-summary-row {
+        position: relative; // the group the exposed text is laid out in
         display: block;
         text-align: left;
         font-size: 16px;

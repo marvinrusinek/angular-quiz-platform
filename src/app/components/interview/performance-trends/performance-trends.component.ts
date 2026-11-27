@@ -8,6 +8,8 @@ import {
 
 import { InterviewTrendPoint, InterviewTrends } from '@shared/models';
 
+import { IntroExposedTextDirective } from '../../../containers/introduction/intro-exposed-text.directive';
+
 // SVG canvas geometry (a viewBox — the element itself scales to its container,
 // so the chart is fully responsive without any JS resize handling).
 const VB = { W: 320, H: 150, padL: 36, padR: 12, padT: 14, padB: 28 } as const;
@@ -43,6 +45,7 @@ interface ChartGeometry {
 @Component({
   selector: 'app-performance-trends',
   standalone: true,
+  imports: [IntroExposedTextDirective],
   templateUrl: './performance-trends.component.html',
   styleUrls: ['./performance-trends.component.scss'],
   encapsulation: ViewEncapsulation.None,

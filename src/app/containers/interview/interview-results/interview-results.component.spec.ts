@@ -297,7 +297,7 @@ describe('InterviewResultsComponent — statistics read as one coherent group ea
   }
 
   const groupText = (selector: string): string | null =>
-    (el.querySelector(`${selector} .visually-hidden-overlay`)?.textContent ?? null)
+    (el.querySelector(`${selector} .intro-exposed-text`)?.textContent ?? null)
       ?.replace(/\s+/g, ' ')
       .trim() ?? null;
 
@@ -317,7 +317,7 @@ describe('InterviewResultsComponent — statistics read as one coherent group ea
     const stats = el.querySelectorAll('.stat-grid > div');
     stats.forEach((div) => expect(div.getAttribute('role')).toBe('group'));
     const texts = Array.from(stats).map((div) =>
-      div.querySelector('.visually-hidden-overlay')!.textContent!.replace(/\s+/g, ' ').trim()
+      div.querySelector('.intro-exposed-text')!.textContent!.replace(/\s+/g, ' ').trim()
     );
     expect(texts).toEqual([
       'Answered, 10',
@@ -340,9 +340,13 @@ describe('InterviewResultsComponent — statistics read as one coherent group ea
     render(RESULT);
     expect(el.querySelector('.score-pct')!.getAttribute('aria-hidden')).toBe('true');
     expect(el.querySelector('.score-sub')!.getAttribute('aria-hidden')).toBe('true');
-    el.querySelectorAll('.stat-grid dt, .stat-grid dd').forEach((node) => {
-      expect(node.getAttribute('aria-hidden')).toBe('true');
+    // the label and value of each stat sit in ONE hidden wrapper; one exposed text node says the phrase
+    el.querySelectorAll('.stat-grid > div').forEach((div) => {
+      expect(div.querySelector('.stat__visible')!.getAttribute('aria-hidden')).toBe('true');
+      expect(div.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+      expect(div.querySelector('.intro-exposed-text')!.closest('[aria-hidden="true"]')).toBeNull();
     });
+    expect(el.querySelector('.stat-grid')!.getAttribute('role')).toBe('none');
   });
 
   it('does not change the VISIBLE text or layout — aria-hidden only affects the accessibility tree', () => {
@@ -354,7 +358,7 @@ describe('InterviewResultsComponent — statistics read as one coherent group ea
 
   it('the new groups and hidden spans carry no tabindex and are not live regions — static content only', () => {
     render(RESULT);
-    el.querySelectorAll('[role="group"], [role="img"], .visually-hidden-overlay').forEach((node) => {
+    el.querySelectorAll('[role="group"], [role="img"], .intro-exposed-text').forEach((node) => {
       expect(node.getAttribute('tabindex')).toBeNull();
       expect(node.getAttribute('aria-live')).toBeNull();
     });
@@ -376,33 +380,36 @@ describe('InterviewResultsComponent — statistics read as one coherent group ea
    * assertions confirm the structural facts a browser can verify; actual
    * Narrator speech was confirmed separately via manual retest.
    */
-  describe('"View Topic Trends" link — relocated after Interview Readiness', () => {
+  describe('"View Topic Trends" link — after the Readiness and Certificate sections', () => {
     it('is a single real, keyboard-operable link to the per-topic breakdown — no duplicate text anywhere', () => {
       render(RESULT);
       // Count only leaf text matches (elements with no element children of
       // their own) so a wrapping <p> around the <a> isn't double-counted
       // as a second occurrence of the same text.
       const matches = Array.from(el.querySelectorAll('*')).filter(
-        (node) => node.children.length === 0 && node.textContent?.trim() === 'View Topic Trends'
+        (node) =>
+          node.children.length === 0 &&
+          node.textContent?.trim() === 'View Topic Trends'
       );
       expect(matches.length).toBe(1);
       const link = el.querySelector('.interview-results__topic-trends-link a') as HTMLAnchorElement;
       expect(link).not.toBeNull();
-      expect(link).toBe(matches[0]);
+      expect(link).toBe(matches[0]); // the text is directly inside the <a>: one node, like "Export Report"
+      expect(link.children).toHaveLength(0);
       expect(link.getAttribute('tabindex')).not.toBe('-1');
     });
 
-    it('comes after the complete Readiness section and before the Certificate section, in real DOM order', () => {
+    it('comes after the complete Readiness AND Certificate sections (never directly before a heading), before the history links', () => {
       render(RESULT);
       const readiness = el.querySelector('.interview-results__readiness')!;
-      const linkWrapper = el.querySelector('.interview-results__topic-trends-link')!;
       const certificate = el.querySelector('.interview-results__certificate')!;
-      expect(
-        readiness.compareDocumentPosition(linkWrapper) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy();
-      expect(
-        linkWrapper.compareDocumentPosition(certificate) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy();
+      const linkWrapper = el.querySelector('.interview-results__topic-trends-link')!;
+      const history = el.querySelector('.interview-results__history-link')!;
+      const follows = (a: Element, b: Element): boolean =>
+        !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(follows(readiness, linkWrapper)).toBe(true);
+      expect(follows(certificate, linkWrapper)).toBe(true);
+      expect(follows(linkWrapper, history)).toBe(true);
     });
   });
 });
@@ -459,7 +466,7 @@ describe('InterviewResultsComponent — "Focus changes" reads as one phrase, not
     render(3);
     const p = el.querySelector('.interview-results__focus')!;
     expect(p.getAttribute('role')).toBe('group');
-    const hidden = p.querySelector('.visually-hidden-overlay')!;
+    const hidden = p.querySelector('.intro-exposed-text')!;
     expect(hidden.textContent!.replace(/\s+/g, ' ').trim()).toBe('Focus changes, 3');
     expect(hidden.getAttribute('role')).toBeNull();
   });

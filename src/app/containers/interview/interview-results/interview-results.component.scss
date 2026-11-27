@@ -117,7 +117,7 @@
     display: block;
   }
 
-  // Small "View Topic Trends" link beneath Performance Trends.
+  // Small "View Topic Trends" link: its original plain text-link appearance (it sits after the certificate card).
   &__topic-trends-link {
     margin: 10px 0 0;
     font-size: 13px;
@@ -243,6 +243,7 @@
   margin: 0 0 8px;
 
   > div {
+    position: relative; // the group the exposed Narrator text is laid out in
     text-align: center;
     padding: 10px 6px;
     border: 1px solid var(--ir-border);
@@ -264,8 +265,26 @@
   }
 }
 
+// The visible label and value of a statistic: a block as wide as its text, centred in the tile, so the
+// exposed text (and Narrator's rectangle) hugs the text, not the whole tile. The tile is unchanged.
+.stat__visible {
+  display: block;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+// The exposed text spans the full width of its box, last line included, so the rectangle matches the
+// visible text. !important because the directive sets text-align inline.
+.stat-grid .intro-exposed-text,
+.interview-results__focus .intro-exposed-text {
+  text-align: justify !important;
+  text-align-last: justify !important;
+  text-justify: inter-character;
+}
+
 // Integrity Mode focus-change count — calm, neutral, informational only.
 .interview-results__focus {
+  position: relative; // the group the exposed Narrator text is laid out in
   margin: 10px 0 0;
   font-size: 13px;
   font-weight: 600;
@@ -281,7 +300,9 @@
   padding: 11px 22px;
   border: 1px solid var(--ir-border);
   border-radius: 10px;
-  background: transparent;
+  // A subtle OPAQUE fill that differs from the page (verified with Narrator: a fill equal to the white page, or transparent,
+  // gave small per-word rectangles; this gives one rectangle around the whole control). Dark mode sets its own fill below.
+  background: #f3f4f6;
   color: var(--ir-text);
   font-size: 15px;
   font-weight: 600;
@@ -319,6 +340,20 @@
   --ir-band-weak: #f07a72;
   --ir-band-strong-text: #6fd68c;
   --ir-band-weak-text: #f28b84;
+
+  // The secondary outlined buttons (View Interview History, View Your Progress, Review Answers, Export Report, Return to
+  // Quiz Selection): the page's hairline border (#363636) is nearly invisible on the dark page. Same border, fill and hover
+  // as the approved Back to Interview History / Interview Readiness / Topic Trends buttons. Dark only; the primary button
+  // keeps its accent fill, and the focus-visible ring is unchanged.
+  // The fills are the translucent values composited over the dark page (#2b2d35), so they look the same but are opaque.
+  .ir-btn:not(.ir-btn--primary) {
+    border-color: #7a7a7a;
+    background: #3a3c43;
+
+    &:hover {
+      background: #3a3c42;
+    }
+  }
 }
 
 // Which interview this was — a role preset's name, or "Custom Interview".

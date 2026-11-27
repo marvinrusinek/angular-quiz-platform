@@ -3,27 +3,54 @@
   <section class="ic-status ic-status--unlocked" aria-labelledby="ic-status-title">
     <span class="ic-status__badge" aria-hidden="true">🎓</span>
     <div class="ic-status__body">
-      <h2 id="ic-status-title" class="ic-status__title" i18n>Angular Interview Master</h2>
-      <p class="ic-status__sub" i18n>Certificate Unlocked</p>
+      <div class="ic-status__heading-group" role="group">
+        <h2 id="ic-status-title" class="ic-status__title">
+          <span class="ic-status__title-visible" data-intro-visible aria-hidden="true">
+            <span data-intro-font-ref i18n>Angular Interview Master</span>
+          </span>
+          <span [appIntroExposedText]="masterHeading" exposedTextMode="cover" exposedSingleRow></span>
+        </h2>
+      </div>
+      <!-- The line under the heading is a neighbour of the h2, so it is a group too (as the eyebrow and date line are
+           around the Interview History Detail h1): its visible text is hidden from AT and ONE exposed text item says it. -->
+      <div class="ic-status__sub-group" role="group">
+        <p class="ic-status__sub" data-intro-visible data-intro-font-ref aria-hidden="true" i18n>Certificate Unlocked</p>
+        <span [appIntroExposedText]="unlockedSub" exposedTextMode="cover" exposedSingleRow></span>
+      </div>
     </div>
-    <a class="ic-status__cta" routerLink="/interview/certificate"
-       aria-label="View your Angular Interview Master certificate" i18n-aria-label i18n>View Certificate</a>
+    <a class="ic-status__cta" routerLink="/interview/certificate" i18n>View Certificate</a>
   </section>
 } @else if (awaitingClaim()) {
   <!-- Both requirements are met — an explicit CTA to claim, never an automatic unlock. -->
   <section class="ic-status ic-status--unlocked" aria-labelledby="ic-status-title">
     <span class="ic-status__badge" aria-hidden="true">🎓</span>
     <div class="ic-status__body">
-      <h2 id="ic-status-title" class="ic-status__title" i18n>Angular Interview Master</h2>
-      <p class="ic-status__sub" i18n>You're eligible — claim your certificate</p>
+      <div class="ic-status__heading-group" role="group">
+        <h2 id="ic-status-title" class="ic-status__title">
+          <span class="ic-status__title-visible" data-intro-visible aria-hidden="true">
+            <span data-intro-font-ref i18n>Angular Interview Master</span>
+          </span>
+          <span [appIntroExposedText]="masterHeading" exposedTextMode="cover" exposedSingleRow></span>
+        </h2>
+      </div>
+      <div class="ic-status__sub-group" role="group">
+        <p class="ic-status__sub" data-intro-visible data-intro-font-ref aria-hidden="true" i18n>You're eligible — claim your certificate</p>
+        <span [appIntroExposedText]="claimSub" exposedTextMode="cover" exposedSingleRow></span>
+      </div>
     </div>
-    <a class="ic-status__cta" routerLink="/interview/certificate/claim"
-       aria-label="Claim your Angular Interview Master certificate" i18n-aria-label i18n>Claim Certificate</a>
+    <a class="ic-status__cta" routerLink="/interview/certificate/claim" i18n>Claim Certificate</a>
   </section>
 } @else {
   <!-- Still in progress — two truthful requirement rows + the single clearest next action. -->
   <section class="ic-status ic-status--progress" aria-labelledby="ic-progress-title">
-    <h2 id="ic-progress-title" class="ic-status__title" i18n>Certificate Progress</h2>
+    <div class="ic-status__heading-group" role="group">
+        <h2 id="ic-progress-title" class="ic-status__title">
+          <span class="ic-status__title-visible" data-intro-visible aria-hidden="true">
+            <span data-intro-font-ref i18n>Certificate Progress</span>
+          </span>
+          <span [appIntroExposedText]="progressHeading" exposedTextMode="cover" exposedSingleRow></span>
+        </h2>
+      </div>
 
     <!-- One screen-reader sentence (static content — not a live region). -->
     <p class="ic-sr">{{ srSummary() }}</p>

@@ -77,6 +77,22 @@
   white-space: nowrap;
 }
 
+// The visible label and value of a metric: a block as wide as its text, centred in the tile, so the exposed
+// text (and Narrator's rectangle) hugs the text, not the whole tile. The tile is unchanged.
+.perf-metrics__visible {
+  display: block;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+// The exposed text spans the full width of its box, last line included. !important: the directive sets
+// text-align inline.
+.perf-metrics .intro-exposed-text {
+  text-align: justify !important;
+  text-align-last: justify !important;
+  text-justify: inter-character;
+}
+
 .perf-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -84,6 +100,7 @@
   margin: 0 0 4px;
 
   > div {
+    position: relative; // the group the exposed Narrator text is laid out in
     text-align: center;
     padding: 10px 6px;
     border: 1px solid var(--ir-border, #e0e0e0);

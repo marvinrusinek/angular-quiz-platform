@@ -51,6 +51,23 @@
 }
 
 // ── progress checklist ────────────────────────────────────────────────
+// The heading is one real h2: its visible text is hidden from assistive technology and ONE exposed text item
+// carries the words (see the template). The h2 anchors that text; the wrapper around the visible text has no box.
+.ic-status__title {
+  position: relative;
+}
+// The group that anchors the exposed text of the line under the heading; the line itself is as wide as its text so the
+// rectangle hugs the text.
+.ic-status__sub-group {
+  position: relative;
+}
+.ic-status__sub-group .ic-status__sub {
+  width: fit-content;
+}
+.ic-status__title-visible {
+  display: contents;
+}
+
 .ic-status--progress {
   .ic-status__title { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
   .ic-status__hint { margin: 0 0 12px; font-size: 13px; color: var(--ir-muted, #6a6a6a); }

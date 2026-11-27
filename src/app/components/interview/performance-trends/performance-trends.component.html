@@ -25,11 +25,18 @@
          hidden/aria-hidden pair — it's a separate, real, non-hidden
          `role="status"` announcement in its own right and must keep
          reading (and re-announcing when it first appears) independently. -->
-    <dl class="perf-metrics">
+    <!-- Each metric is one group, one stop: "Label, value". The visible label and value are hidden from
+         assistive technology and ONE exposed text item covers the tile (see IntroExposedTextDirective), as on
+         Interview History Detail. The "New Personal Best!" badge stays OUTSIDE the hidden part: it is its own
+         real role="status" announcement and must keep reading independently. The dl is role="none" so no
+         list position is announced. -->
+    <dl class="perf-metrics" role="none">
       <div role="group">
-        <span class="visually-hidden-overlay">{{ latestAccessibleLabel() }}</span>
-        <dt aria-hidden="true" i18n>Latest</dt>
-        <dd class="perf-metrics__latest" aria-hidden="true">{{ trends()?.latest }}%</dd>
+        <span class="perf-metrics__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Latest</dt>
+          <dd class="perf-metrics__latest">{{ trends()?.latest }}%</dd>
+        </span>
+        <span [appIntroExposedText]="latestAccessibleLabel()" exposedTextMode="cover"></span>
         @if (trends()?.isPersonalBest) {
           <p class="perf-metrics__pb" role="status">
             <span class="perf-metrics__pb-icon" aria-hidden="true">🏆</span>
@@ -38,23 +45,28 @@
         }
       </div>
       <div role="group">
-        <span class="visually-hidden-overlay">{{ bestAccessibleLabel() }}</span>
-        <dt aria-hidden="true" i18n>Best</dt>
-        <dd aria-hidden="true">{{ trends()?.best }}%</dd>
+        <span class="perf-metrics__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Best</dt>
+          <dd>{{ trends()?.best }}%</dd>
+        </span>
+        <span [appIntroExposedText]="bestAccessibleLabel()" exposedTextMode="cover"></span>
       </div>
       <div role="group">
-        <span class="visually-hidden-overlay">{{ averageAccessibleLabel() }}</span>
-        <dt aria-hidden="true" i18n>Average</dt>
-        <dd aria-hidden="true">{{ trends()?.average }}%</dd>
+        <span class="perf-metrics__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Average</dt>
+          <dd>{{ trends()?.average }}%</dd>
+        </span>
+        <span [appIntroExposedText]="averageAccessibleLabel()" exposedTextMode="cover"></span>
       </div>
       <div role="group">
-        <span class="visually-hidden-overlay">{{ changeAccessibleLabel() }}</span>
-        <dt aria-hidden="true" i18n>Change</dt>
-        <dd
-          aria-hidden="true"
-          [class.perf-metrics__change--up]="(trends()?.change ?? 0) > 0"
-          [class.perf-metrics__change--down]="(trends()?.change ?? 0) < 0"
-        >{{ changeLabel() }}</dd>
+        <span class="perf-metrics__visible" data-intro-visible aria-hidden="true">
+          <dt data-intro-font-ref i18n>Change</dt>
+          <dd
+            [class.perf-metrics__change--up]="(trends()?.change ?? 0) > 0"
+            [class.perf-metrics__change--down]="(trends()?.change ?? 0) < 0"
+          >{{ changeLabel() }}</dd>
+        </span>
+        <span [appIntroExposedText]="changeAccessibleLabel()" exposedTextMode="cover"></span>
       </div>
     </dl>
 

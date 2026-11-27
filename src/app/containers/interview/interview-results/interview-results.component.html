@@ -53,31 +53,46 @@
         </div>
       </div>
 
-      <dl class="stat-grid">
+      <!-- Each statistic is one group, one stop: "Label, value". The visible label and value are hidden from
+           assistive technology and ONE exposed text item covers the tile (see IntroExposedTextDirective), as on
+           Interview History Detail. The dl is role="none" so no "n of 6" list position is announced. -->
+      <dl class="stat-grid" role="none">
         <div role="group">
-          <span class="visually-hidden-overlay">{{ answeredAccessibleLabel() }}</span>
-          <dt aria-hidden="true" i18n>Answered</dt><dd aria-hidden="true">{{ r.answered }}</dd>
+          <span class="stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Answered</dt><dd>{{ r.answered }}</dd>
+          </span>
+          <span [appIntroExposedText]="answeredAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
         <div role="group">
-          <span class="visually-hidden-overlay">{{ unansweredAccessibleLabel() }}</span>
-          <dt aria-hidden="true" i18n>Unanswered</dt><dd aria-hidden="true">{{ r.unanswered }}</dd>
+          <span class="stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Unanswered</dt><dd>{{ r.unanswered }}</dd>
+          </span>
+          <span [appIntroExposedText]="unansweredAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
         <div role="group">
-          <span class="visually-hidden-overlay">{{ correctAccessibleLabel() }}</span>
-          <dt aria-hidden="true" i18n>Correct</dt><dd aria-hidden="true">{{ r.correct }}</dd>
+          <span class="stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Correct</dt><dd>{{ r.correct }}</dd>
+          </span>
+          <span [appIntroExposedText]="correctAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
         <div role="group">
-          <span class="visually-hidden-overlay">{{ incorrectAccessibleLabel() }}</span>
-          <dt aria-hidden="true" i18n>Incorrect</dt><dd aria-hidden="true">{{ r.incorrect }}</dd>
+          <span class="stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Incorrect</dt><dd>{{ r.incorrect }}</dd>
+          </span>
+          <span [appIntroExposedText]="incorrectAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
         <div role="group">
-          <span class="visually-hidden-overlay">{{ timeUsedAccessibleLabel() }}</span>
-          <dt aria-hidden="true" i18n>Time used</dt><dd aria-hidden="true">{{ timeUsed() }}</dd>
+          <span class="stat__visible" data-intro-visible aria-hidden="true">
+            <dt data-intro-font-ref i18n>Time used</dt><dd>{{ timeUsed() }}</dd>
+          </span>
+          <span [appIntroExposedText]="timeUsedAccessibleLabel()" exposedTextMode="cover"></span>
         </div>
         @if (difficultyLabel(); as difficulty) {
           <div role="group">
-            <span class="visually-hidden-overlay">{{ difficultyAccessibleLabel() }}</span>
-            <dt aria-hidden="true" i18n>Difficulty</dt><dd aria-hidden="true">{{ difficulty | titlecase }}</dd>
+            <span class="stat__visible" data-intro-visible aria-hidden="true">
+              <dt data-intro-font-ref i18n>Difficulty</dt><dd>{{ difficulty | titlecase }}</dd>
+            </span>
+            <span [appIntroExposedText]="difficultyAccessibleLabel()" exposedTextMode="cover"></span>
           </div>
         }
       </dl>
@@ -97,10 +112,10 @@
            text is aria-hidden so it isn't ALSO read, and one real-text
            span supplies the single combined phrase. -->
       <p class="interview-results__focus" role="group">
-        <span class="visually-hidden-overlay">{{ focusChangesAccessibleLabel() }}</span>
-        <span aria-hidden="true">
+        <span class="interview-results__focus-visible" data-intro-visible data-intro-font-ref aria-hidden="true">
           <ng-container i18n>Focus changes:</ng-container> {{ focusChanges() }}
         </span>
+        <span [appIntroExposedText]="focusChangesAccessibleLabel()" exposedTextMode="cover" exposedSingleRow></span>
       </p>
 
       <app-topic-performance-list [analytics]="analytics()" />
@@ -133,13 +148,15 @@
          Manually confirmed: the link reads together on its own, and the
          Readiness heading again reads as one clean phrase under Down
          Arrow. -->
-    <p class="interview-results__topic-trends-link">
-      <a routerLink="/interview/trends" i18n>View Topic Trends</a>
-    </p>
 
     <!-- Angular Interview Master Certificate — progress checklist, or the unlock
          celebration + "View Certificate" once every requirement is satisfied. -->
     <app-interview-certificate-status class="interview-results__certificate" />
+
+    <!-- "View Topic Trends" sits AFTER the certificate card, not before it (see the history above). A plain native text link. -->
+    <p class="interview-results__topic-trends-link">
+      <a routerLink="/interview/trends" i18n>View Topic Trends</a>
+    </p>
 
     <!-- Gateways off this single attempt: the full Interview History (read-only
          record of past attempts) and Your Progress (aggregate across attempts and
@@ -161,13 +178,7 @@
         #reviewToggleBtn
         (click)="toggleReview()"
         [attr.aria-expanded]="showReview()"
-      >
-        @if (!showReview()) {
-          <ng-container i18n>Review Answers</ng-container>
-        } @else {
-          <ng-container i18n>Hide Review</ng-container>
-        }
-      </button>
+      >{{ reviewToggleLabel() }}</button>
       <a class="ir-btn interview-results__export-report" [routerLink]="['/interview/report', r.sessionId]" i18n>Export Report</a>
       <button type="button" class="ir-btn ir-btn--primary" (click)="buildAnother()" i18n>
         Build Another Assessment
@@ -176,6 +187,7 @@
         Return to Quiz Selection
       </button>
     </div>
+
 
     @if (showReview()) {
       <section class="interview-results__review" aria-label="Answer review" i18n-aria-label>

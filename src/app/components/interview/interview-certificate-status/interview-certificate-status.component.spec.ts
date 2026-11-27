@@ -124,3 +124,67 @@ describe('InterviewCertificateStatusComponent', () => {
     expect(el.querySelector('.ic-sr')?.textContent).toContain('Certificate progress:');
   });
 });
+
+describe('InterviewCertificateStatusComponent — heading is one Narrator stop', () => {
+  beforeEach(() => {
+    unlockedSig.set(false);
+    progressSig.set(progress());
+    claimStatusSig.set('none');
+  });
+
+  it('"Angular Interview Master" is a native h2 whose visible text is hidden and ONE exposed text node says it', () => {
+    unlockedSig.set(true);
+    const el = render().nativeElement as HTMLElement;
+    const h2 = el.querySelector('h2')!;
+    expect(h2.tagName).toBe('H2');
+    expect(h2.closest('[role="group"]')).not.toBeNull();
+    expect(h2.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    const exposed = h2.querySelectorAll('.intro-exposed-text');
+    expect(exposed).toHaveLength(1);
+    expect(exposed[0].textContent).toBe('Angular Interview Master');
+    expect(exposed[0].closest('[aria-hidden="true"]')).toBeNull();
+    expect(h2.hasAttribute('tabindex')).toBe(false);
+    expect(h2.querySelector('[role="img"], svg, img')).toBeNull();
+  });
+
+  it('the claim state and the progress state heading are built the same way', () => {
+    claimStatusSig.set('none');
+    progressSig.set(progress({ angularExplorerEarned: true, qualifyingInterviewsCompleted: 5, isEligible: true }));
+    const claim = render().nativeElement as HTMLElement;
+    expect(claim.querySelector('h2 .intro-exposed-text')!.textContent).toBe('Angular Interview Master');
+    progressSig.set(progress());
+    const inProgress = render().nativeElement as HTMLElement;
+    expect(inProgress.querySelector('h2 .intro-exposed-text')!.textContent).toBe('Certificate Progress');
+  });
+});
+
+describe('InterviewCertificateStatusComponent — the line under the heading is one stop too', () => {
+  it('"Certificate Unlocked" is a group: hidden visible text and ONE exposed text node', () => {
+    unlockedSig.set(true);
+    const el = render().nativeElement as HTMLElement;
+    const group = el.querySelector('.ic-status__sub-group')!;
+    expect(group.getAttribute('role')).toBe('group');
+    expect(group.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(group.querySelector('[data-intro-visible]')!.textContent!.trim()).toBe('Certificate Unlocked');
+    const exposed = group.querySelectorAll('.intro-exposed-text');
+    expect(exposed).toHaveLength(1);
+    expect(exposed[0].textContent).toBe('Certificate Unlocked');
+    expect(el.querySelector('.ic-status__body > p')).toBeNull(); // no bare paragraph next to the h2
+  });
+});
+
+describe('InterviewCertificateStatusComponent — the call to action is named by its own text', () => {
+  it('"View Certificate" and "Claim Certificate" carry no aria-label, so Narrator says just the visible text', () => {
+    unlockedSig.set(true);
+    const view = (render().nativeElement as HTMLElement).querySelector('.ic-status__cta') as HTMLAnchorElement;
+    expect(view.textContent!.trim()).toBe('View Certificate');
+    expect(view.hasAttribute('aria-label')).toBe(false);
+    expect(view.getAttribute('href')).toContain('/interview/certificate');
+
+    unlockedSig.set(false);
+    progressSig.set(progress({ angularExplorerEarned: true, qualifyingInterviewsCompleted: 5, isEligible: true }));
+    const claim = (render().nativeElement as HTMLElement).querySelector('.ic-status__cta') as HTMLAnchorElement;
+    expect(claim.textContent!.trim()).toBe('Claim Certificate');
+    expect(claim.hasAttribute('aria-label')).toBe(false);
+  });
+});

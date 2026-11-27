@@ -31,6 +31,7 @@ import { InterviewReadinessComponent } from '../../../components/interview/inter
 import { InterviewReadinessService } from '@shared/services/features/interview/interview-readiness.service';
 import { ScrollDownIndicatorComponent } from '../../../components/scroll-down-indicator/scroll-down-indicator.component';
 import { InterviewCertificateStatusComponent } from '../../../components/interview/interview-certificate-status/interview-certificate-status.component';
+import { IntroExposedTextDirective } from '../../introduction/intro-exposed-text.directive';
 import { AchievementService } from '@shared/services/achievements/achievement.service';
 
 /**
@@ -51,7 +52,8 @@ import { AchievementService } from '@shared/services/achievements/achievement.se
     TopicPerformanceListComponent,
     InterviewReadinessComponent,
     ScrollDownIndicatorComponent,
-    InterviewCertificateStatusComponent
+    InterviewCertificateStatusComponent,
+    IntroExposedTextDirective
   ],
   templateUrl: './interview-results.component.html',
   styleUrls: ['./interview-results.component.scss'],
@@ -189,6 +191,9 @@ export class InterviewResultsComponent {
    * it isn't ALSO read. Comma phrasing matches every other stat's
    * "Label, value" convention.
    */
+  /** The label of the Review Answers toggle: one text node, "Review Answers" or "Hide Review". */
+  readonly reviewToggleLabel = computed(() => (this.showReview() ? $localize`Hide Review` : $localize`Review Answers`));
+
   readonly focusChangesAccessibleLabel = computed(() => $localize`Focus changes, ${this.focusChanges()}`);
 
   readonly reviewQuestions = computed(() => this.result()?.review ?? []);

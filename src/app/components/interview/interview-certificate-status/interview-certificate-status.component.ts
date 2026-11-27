@@ -8,6 +8,8 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { IntroExposedTextDirective } from '../../../containers/introduction/intro-exposed-text.directive';
+
 import { InterviewCertificateService } from '@shared/services/features/interview/interview-certificate.service';
 import { CertificateClaimService } from '@shared/services/features/interview/certificate-claim.service';
 import {
@@ -31,7 +33,7 @@ import {
 @Component({
   selector: 'app-interview-certificate-status',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, IntroExposedTextDirective],
   templateUrl: './interview-certificate-status.component.html',
   styleUrls: ['./interview-certificate-status.component.scss'],
   encapsulation: ViewEncapsulation.None,
@@ -40,6 +42,12 @@ import {
 export class InterviewCertificateStatusComponent implements OnInit {
   readonly cert = inject(InterviewCertificateService);
   private readonly claimService = inject(CertificateClaimService);
+
+  /** The heading text Narrator reads (the visible heading is hidden from assistive technology; see the template). */
+  readonly masterHeading = $localize`Angular Interview Master`;
+  readonly progressHeading = $localize`Certificate Progress`;
+  readonly unlockedSub = $localize`Certificate Unlocked`;
+  readonly claimSub = $localize`You're eligible — claim your certificate`;
 
   readonly hasCertificate = computed(
     () => this.claimService.status() === 'verified' || this.cert.unlocked()

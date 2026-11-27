@@ -121,7 +121,7 @@ describe('PerformanceTrendsComponent', () => {
     const el = render(trendsFor([70, 76]));
     const change = el.querySelector('.perf-metrics__change--up');
     expect(change?.textContent).toContain('+6 pts');
-    expect(change?.getAttribute('aria-hidden')).toBe('true');
+    expect(change?.closest('[aria-hidden="true"]')).not.toBeNull(); // hidden with its tile's visible text
   });
 
   /**
@@ -133,7 +133,7 @@ describe('PerformanceTrendsComponent', () => {
   describe('each metric reads as one combined "Label, value" phrase', () => {
     const groupPhrase = (el: HTMLElement, i: number): string | null =>
       el.querySelectorAll('.perf-metrics > div')[i]
-        ?.querySelector('.visually-hidden-overlay')?.textContent?.trim() ?? null;
+        ?.querySelector('.intro-exposed-text')?.textContent?.trim() ?? null;
 
     it('groups Latest/Best/Average with their percentage values', () => {
       const el = render(trendsFor([70, 76, 82]));
@@ -163,8 +163,14 @@ describe('PerformanceTrendsComponent', () => {
     it('hides the real dt/dd from the accessibility tree so nothing is spoken twice', () => {
       const el = render(trendsFor([70, 76]));
       el.querySelectorAll('.perf-metrics dt, .perf-metrics dd').forEach((node) => {
-        expect(node.getAttribute('aria-hidden')).toBe('true');
+        expect(node.closest('.perf-metrics__visible')!.getAttribute('aria-hidden')).toBe('true');
       });
+      // one exposed text node per tile, outside the hidden part; the dl carries no list semantics
+      el.querySelectorAll('.perf-metrics > div').forEach((div) => {
+        expect(div.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+        expect(div.querySelector('.intro-exposed-text')!.closest('[aria-hidden="true"]')).toBeNull();
+      });
+      expect(el.querySelector('.perf-metrics')!.getAttribute('role')).toBe('none');
     });
 
     it('does not change the visible metric text', () => {
@@ -182,7 +188,7 @@ describe('PerformanceTrendsComponent', () => {
 
     it('introduces no new tabindex or live regions on the grouped rows', () => {
       const el = render(trendsFor([70, 76]));
-      el.querySelectorAll('[role="group"], .visually-hidden-overlay').forEach((node) => {
+      el.querySelectorAll('[role="group"], .intro-exposed-text').forEach((node) => {
         expect(node.getAttribute('tabindex')).toBeNull();
         expect(node.getAttribute('aria-live')).toBeNull();
       });

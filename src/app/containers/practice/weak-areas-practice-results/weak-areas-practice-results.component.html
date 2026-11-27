@@ -7,28 +7,44 @@
   @if (result(); as summary) {
     <!-- Overall score. The percentage is stated alongside the raw counts so the
          result never depends on reading a single number. -->
-    <section class="wapr__score" aria-labelledby="wapr-score-heading">
+    <!-- A plain container, not a <section aria-labelledby>: that was announced as the "Your Score region
+         landmark". The heading stays. The summary is ONE group: the visible values are hidden from
+         assistive technology and the group exposes ONE text node ("100%, 10 out of 10 correct"), laid out
+         over the visible values (see IntroExposedTextDirective), so Narrator reads it once, with one box. -->
+    <div class="wapr__score">
       <h2 id="wapr-score-heading" class="wapr__section-title" i18n>Your Score</h2>
-      <p class="wapr__score-value">{{ summary.percentage }}%</p>
-      <p class="wapr__score-detail" i18n>
-        {{ summary.correct }} of {{ summary.total }} correct
-      </p>
-      @if (summary.unanswered > 0) {
-        <p class="wapr__score-note" i18n>{{ summary.unanswered }} left unanswered</p>
-      }
-    </section>
+      <div class="wapr__score-group" role="group">
+        <div class="wapr__score-visible" data-intro-visible aria-hidden="true">
+          <p class="wapr__score-value">{{ summary.percentage }}%</p>
+          <p class="wapr__score-detail" i18n>
+            {{ summary.correct }} of {{ summary.total }} correct
+          </p>
+          @if (summary.unanswered > 0) {
+            <p class="wapr__score-note" i18n>{{ summary.unanswered }} left unanswered</p>
+          }
+        </div>
+        <span [appIntroExposedText]="scoreSpoken()" exposedTextMode="justify"></span>
+      </div>
+    </div>
 
     <!-- Per-topic breakdown, from each question's preserved source topic. -->
     <section class="wapr__topics" aria-labelledby="wapr-topics-heading">
       <h2 id="wapr-topics-heading" class="wapr__section-title" i18n>By Topic</h2>
-      <ul class="wapr__topic-list">
+      <!-- role="none" on the list and its items: no list semantics, so a topic is not announced with its
+           position ("1 of 3"). Each topic is still ONE exposed text node (see below). -->
+      <ul class="wapr__topic-list" role="none">
         @for (topic of perTopic(); track topic.topicId) {
-          <li class="wapr__topic">
-            <span class="wapr__topic-name">{{ topic.topicName }}</span>
-            <span class="wapr__topic-score">
-              <ng-container i18n>{{ topic.correct }}/{{ topic.total }}</ng-container>
-              <span class="wapr__topic-pct">{{ topic.percentage }}%</span>
-            </span>
+          <!-- The visible name, "3/3" and percentage are hidden from assistive technology; ONE exposed text
+               node says "RxJS, 3 out of 3, 100%". -->
+          <li class="wapr__topic" role="none">
+            <div class="wapr__topic-visible" data-intro-visible aria-hidden="true">
+              <span class="wapr__topic-name">{{ topic.topicName }}</span>
+              <span class="wapr__topic-score">
+                <ng-container i18n>{{ topic.correct }}/{{ topic.total }}</ng-container>
+                <span class="wapr__topic-pct">{{ topic.percentage }}%</span>
+              </span>
+            </div>
+            <span [appIntroExposedText]="topicSpoken(topic)" exposedTextMode="justify"></span>
           </li>
         }
       </ul>
@@ -46,48 +62,77 @@
           [class.wapr__entry--correct]="entry.isCorrect"
           [class.wapr__entry--incorrect]="!entry.isCorrect"
         >
-          <p class="wapr__entry-meta">
-            <span class="wapr__entry-number" i18n>Question {{ entry.index + 1 }}</span>
-            <span class="wapr__sep" aria-hidden="true">·</span>
-            <span class="wapr__entry-topic">{{ entry.topicName }}</span>
-          </p>
+          <!-- "Question 1, RxJS" as ONE exposed text node (the visible dot separator is decorative). -->
+          <div class="wapr__entry-meta" role="group">
+            <span class="wapr__entry-meta-visible" data-intro-visible aria-hidden="true">
+              <span class="wapr__entry-number" i18n>Question {{ entry.index + 1 }}</span>
+              <span class="wapr__sep">·</span>
+              <span class="wapr__entry-topic">{{ entry.topicName }}</span>
+            </span>
+            <span [appIntroExposedText]="metaSpoken(entry)" exposedTextMode="justify"></span>
+          </div>
 
           <h3 class="wapr__entry-question">{{ entry.questionText }}</h3>
 
           <!-- Result as TEXT, so it is never carried by colour alone. -->
+          <!-- Result as TEXT, so it is never carried by colour alone. The pill is ONE group: its visible text is
+               hidden from assistive technology and the group exposes ONE text node ("Correct"), sized to the
+               whole pill (border and padding included), so Narrator reads it once with one rectangle. -->
           <p class="wapr__entry-result">
             @if (entry.isCorrect) {
-              <span class="wapr__badge wapr__badge--correct" i18n>Correct</span>
+              <span class="wapr__badge wapr__badge--correct" role="group">
+                <span class="wapr__badge-visible" data-intro-visible data-intro-font-ref aria-hidden="true" i18n>Correct</span>
+                <span [appIntroExposedText]="statusSpoken(entry)" exposedTextMode="cover" exposedTextBox="group" exposedSingleRow></span>
+              </span>
             } @else if (entry.answered) {
-              <span class="wapr__badge wapr__badge--incorrect" i18n>Incorrect</span>
+              <span class="wapr__badge wapr__badge--incorrect" role="group">
+                <span class="wapr__badge-visible" data-intro-visible data-intro-font-ref aria-hidden="true" i18n>Incorrect</span>
+                <span [appIntroExposedText]="statusSpoken(entry)" exposedTextMode="cover" exposedTextBox="group" exposedSingleRow></span>
+              </span>
             } @else {
-              <span class="wapr__badge wapr__badge--skipped" i18n>Not answered</span>
+              <span class="wapr__badge wapr__badge--skipped" role="group">
+                <span class="wapr__badge-visible" data-intro-visible data-intro-font-ref aria-hidden="true" i18n>Not answered</span>
+                <span [appIntroExposedText]="statusSpoken(entry)" exposedTextMode="cover" exposedTextBox="group" exposedSingleRow></span>
+              </span>
             }
           </p>
 
-          <dl class="wapr__answers">
-            <dt i18n>Your answer</dt>
-            <dd>
-              @if (entry.selectedTexts.length > 0) {
-                <ul class="wapr__answer-list">
-                  @for (text of entry.selectedTexts; track text) {
-                    <li>{{ text }}</li>
+          <!-- Each answer is one group: its label and answer text are hidden from assistive technology and ONE
+               exposed text node says "Your answer: <text>" (one line per answer, so a multi-answer or a long
+               answer is still one stop with one box). Plain containers instead of a <dl>, so no list positions. -->
+          <div class="wapr__answers">
+            <div class="wapr__answer" role="group">
+              <div class="wapr__answer-visible" data-intro-visible aria-hidden="true">
+                <div class="wapr__answers-label" i18n>Your answer</div>
+                <div class="wapr__answers-value">
+                  @if (entry.selectedTexts.length > 0) {
+                    <ul class="wapr__answer-list">
+                      @for (text of entry.selectedTexts; track text) {
+                        <li>{{ text }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <span class="wapr__muted" i18n>No answer selected</span>
                   }
-                </ul>
-              } @else {
-                <span class="wapr__muted" i18n>No answer selected</span>
-              }
-            </dd>
+                </div>
+              </div>
+              <span [appIntroExposedText]="yourAnswerSpoken(entry)" exposedTextMode="justify"></span>
+            </div>
 
-            <dt i18n>Correct answer</dt>
-            <dd>
-              <ul class="wapr__answer-list">
-                @for (text of entry.correctTexts; track text) {
-                  <li>{{ text }}</li>
-                }
-              </ul>
-            </dd>
-          </dl>
+            <div class="wapr__answer" role="group">
+              <div class="wapr__answer-visible" data-intro-visible aria-hidden="true">
+                <div class="wapr__answers-label" i18n>Correct answer</div>
+                <div class="wapr__answers-value">
+                  <ul class="wapr__answer-list">
+                    @for (text of entry.correctTexts; track text) {
+                      <li>{{ text }}</li>
+                    }
+                  </ul>
+                </div>
+              </div>
+              <span [appIntroExposedText]="correctAnswerSpoken(entry)" exposedTextMode="justify"></span>
+            </div>
+          </div>
 
           @if (entry.explanation) {
             <p class="wapr__entry-explanation">{{ entry.explanation }}</p>

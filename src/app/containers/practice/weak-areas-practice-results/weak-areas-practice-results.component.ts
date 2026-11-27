@@ -16,6 +16,7 @@ import { WeakAreasService } from '@shared/services/progress/weak-areas.service';
 import { swallow } from '@shared/utils/error-logging';
 import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-toggle.component';
 import { ScrollDownIndicatorComponent } from '../../../components/scroll-down-indicator/scroll-down-indicator.component';
+import { IntroExposedTextDirective } from '../../introduction/intro-exposed-text.directive';
 
 /**
  * Practice Results — overall score, per-topic breakdown and Answer Review.
@@ -32,7 +33,7 @@ import { ScrollDownIndicatorComponent } from '../../../components/scroll-down-in
 @Component({
   selector: 'codelab-weak-areas-practice-results',
   standalone: true,
-  imports: [ThemeToggleComponent, ScrollDownIndicatorComponent],
+  imports: [ThemeToggleComponent, ScrollDownIndicatorComponent, IntroExposedTextDirective],
   templateUrl: './weak-areas-practice-results.component.html',
   styleUrls: ['./weak-areas-practice-results.component.scss'],
   encapsulation: ViewEncapsulation.None,
@@ -52,6 +53,49 @@ export class WeakAreasPracticeResultsComponent {
   readonly percentage = computed(() => this.result()?.percentage ?? 0);
   readonly perTopic = computed(() => this.result()?.perTopic ?? []);
   readonly review = computed(() => this.result()?.review ?? []);
+
+  // What Narrator reads. Each text is built from the same data as the visible values, one line per visible
+  // row, and exposed as ONE text node per group (see IntroExposedTextDirective).
+  /** "100%," / "10 out of 10 correct" (and "N left unanswered" when there are any). */
+  readonly scoreSpoken = computed(() => {
+    const s = this.result();
+    if (!s) return '';
+    const lines = [$localize`${s.percentage}%,`];
+    if (s.unanswered > 0) {
+      lines.push($localize`${s.correct} out of ${s.total} correct,`);
+      lines.push($localize`${s.unanswered} left unanswered`);
+    } else {
+      lines.push($localize`${s.correct} out of ${s.total} correct`);
+    }
+    return lines.join('\n');
+  });
+
+  /** "RxJS, 3 out of 3, 100%". The visible "3/3" notation stays. */
+  topicSpoken(topic: { topicName: string; correct: number; total: number; percentage: number }): string {
+    return $localize`${topic.topicName}, ${topic.correct} out of ${topic.total}, ${topic.percentage}%`;
+  }
+
+  /** The status pill: "Correct", "Incorrect" or "Not answered". */
+  statusSpoken(entry: { isCorrect: boolean; answered: boolean }): string {
+    if (entry.isCorrect) return $localize`Correct`;
+    return entry.answered ? $localize`Incorrect` : $localize`Not answered`;
+  }
+
+  /** "Question 1, RxJS". */
+  metaSpoken(entry: { index: number; topicName: string }): string {
+    return $localize`Question ${entry.index + 1}, ${entry.topicName}`;
+  }
+
+  /** "Your answer:" then one line per selected answer (or "No answer selected"). */
+  yourAnswerSpoken(entry: { selectedTexts: readonly string[] }): string {
+    const label = $localize`Your answer:`;
+    return [label, ...(entry.selectedTexts.length > 0 ? entry.selectedTexts : [$localize`No answer selected`])].join('\n');
+  }
+
+  /** "Correct answer:" then one line per correct answer. */
+  correctAnswerSpoken(entry: { correctTexts: readonly string[] }): string {
+    return [$localize`Correct answer:`, ...entry.correctTexts].join('\n');
+  }
 
   /**
    * Set when Practice Again finds nothing left to practise. Shown INSTEAD of

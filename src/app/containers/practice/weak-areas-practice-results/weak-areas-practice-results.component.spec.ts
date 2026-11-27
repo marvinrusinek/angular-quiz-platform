@@ -320,3 +320,95 @@ describe('WeakAreasPracticeResultsComponent — Back to Quizzes', () => {
     expect(navigate).toHaveBeenCalledWith(['/quiz'], { replaceUrl: true });
   });
 });
+
+/**
+ * Narrator: each summary is ONE group. The visible values are hidden from assistive technology and the group
+ * exposes ONE text node with the full phrase, built from the same data (see IntroExposedTextDirective).
+ */
+describe('WeakAreasPracticeResultsComponent — one Narrator stop per summary', () => {
+  const exposed = (el: Element): string[] =>
+    [...el.querySelectorAll('.intro-exposed-text')].map((e) => e.textContent ?? '');
+
+  it('Your Score: no region landmark, the heading stays, and the score is one phrase', () => {
+    const fixture = mount(makeStubs());
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.wapr__score')!.tagName).toBe('DIV');
+    expect(root.querySelector('section[aria-labelledby="wapr-score-heading"]')).toBeNull();
+    expect(root.querySelector('#wapr-score-heading')!.textContent).toContain('Your Score');
+    const group = root.querySelector('.wapr__score-group')!;
+    expect(group.getAttribute('role')).toBe('group');
+    expect(group.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(exposed(group)).toEqual(['33%,\n1 out of 3 correct,\n1 left unanswered']);
+  });
+
+  it('Your Score: uses the real values and omits the unanswered line when there are none', () => {
+    const stubs = makeStubs();
+    stubs.session.result.set({ ...RESULT, total: 10, correct: 10, unanswered: 0, percentage: 100 });
+    const fixture = mount(stubs);
+    expect(exposed(fixture.nativeElement.querySelector('.wapr__score-group'))).toEqual(['100%,\n10 out of 10 correct']);
+  });
+
+  it('By Topic: "RxJS, 1 out of 2, 50%" for every topic, with the visible slash notation kept', () => {
+    const fixture = mount(makeStubs());
+    const rows = [...fixture.nativeElement.querySelectorAll('.wapr__topic')] as HTMLElement[];
+    expect(rows.map((r) => exposed(r))).toEqual([['RxJS, 1 out of 2, 50%'], ['Signals, 0 out of 1, 0%']]);
+    const visible = rows[0].querySelector('[data-intro-visible]')!;
+    expect(visible.getAttribute('aria-hidden')).toBe('true');
+    expect(visible.textContent!.replace(/\s+/g, ' ')).toContain('1/2');
+  });
+
+  it('Answer Review: "Question 1, RxJS" is one stop for every question', () => {
+    const fixture = mount(makeStubs());
+    const metas = [...fixture.nativeElement.querySelectorAll('.wapr__entry-meta')] as HTMLElement[];
+    expect(metas.map((m) => exposed(m))).toEqual([['Question 1, RxJS'], ['Question 2, RxJS'], ['Question 3, Signals']]);
+    for (const m of metas) {
+      expect(m.getAttribute('role')).toBe('group');
+      expect(m.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('Answer Review: each answer label and text is one stop, multi-answer and unanswered included', () => {
+    const fixture = mount(makeStubs());
+    const entries = [...fixture.nativeElement.querySelectorAll('.wapr__entry')] as HTMLElement[];
+    const answers = (e: HTMLElement): string[][] => [...e.querySelectorAll('.wapr__answer')].map((a) => exposed(a));
+    expect(answers(entries[0])).toEqual([['Your answer:\nA multicast observable'], ['Correct answer:\nA multicast observable']]);
+    expect(answers(entries[1])).toEqual([['Your answer:\nmap'], ['Correct answer:\nmap\nfilter']]);
+    expect(answers(entries[2])).toEqual([['Your answer:\nNo answer selected'], ['Correct answer:\nReactive primitives']]);
+    for (const e of entries) {
+      expect(e.querySelector('dl, dt, dd, [role="img"], svg')).toBeNull();
+      for (const a of Array.from(e.querySelectorAll('.wapr__answer'))) expect(a.getAttribute('role')).toBe('group');
+    }
+  });
+
+  it('By Topic: the list and its items carry no list semantics (no "1 of 3" positions)', () => {
+    const fixture = mount(makeStubs());
+    const list = fixture.nativeElement.querySelector('.wapr__topic-list') as HTMLElement;
+    expect(list.getAttribute('role')).toBe('none');
+    for (const li of Array.from(list.querySelectorAll('.wapr__topic'))) expect(li.getAttribute('role')).toBe('none');
+  });
+
+  it('status pill: Correct, Incorrect and Not answered are each one group with ONE exposed text node, no image role', () => {
+    const fixture = mount(makeStubs());
+    const pills = [...fixture.nativeElement.querySelectorAll('.wapr__badge')] as HTMLElement[];
+    expect(pills.map((p) => exposed(p))).toEqual([['Correct'], ['Incorrect'], ['Not answered']]);
+    for (const p of pills) {
+      expect(p.getAttribute('role')).toBe('group');
+      expect(p.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+      expect(p.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+      expect(p.querySelector('[role="img"], svg, img')).toBeNull();
+    }
+    // the visible pill text and its colour classes are unchanged
+    expect(pills.map((p) => p.querySelector('[data-intro-visible]')!.textContent!.trim())).toEqual(['Correct', 'Incorrect', 'Not answered']);
+    expect(pills.map((p) => p.className)).toEqual([
+      'wapr__badge wapr__badge--correct',
+      'wapr__badge wapr__badge--incorrect',
+      'wapr__badge wapr__badge--skipped'
+    ]);
+  });
+
+  it('keeps the explanation text exactly as written (no capitalization change)', () => {
+    const fixture = mount(makeStubs());
+    const exp = [...fixture.nativeElement.querySelectorAll('.wapr__entry-explanation')].map((e) => (e as HTMLElement).textContent!.trim());
+    expect(exp).toEqual(['CORRECT-FET', 'PARTIAL-FET', 'SKIPPED-FET']);
+  });
+});

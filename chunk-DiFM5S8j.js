@@ -1,0 +1,1 @@
+import{m as Pt}from"./main-C3PWIF34.js";function a(r,o,s){let e=Pt(r,s,o);if(e&&(e.phase===`expired`||e.phase===`resolved`||e.phase===`incomplete`&&e.selectedOptionTexts.length>0))return!0;let t=r.userAnswers?.[s];return Array.isArray(t)?t.length>0:t!=null}export{a as t};

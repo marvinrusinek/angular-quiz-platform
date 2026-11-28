@@ -1,0 +1,1 @@
+import{B as LV,S as GE,dt as T}from"./chunk-BK1Z8mY4.js";import{Y as ae}from"./chunk-BvYJSuzC.js";function f(){let n=T(ae).currentNavigation()?.trigger;GE(()=>{if(n!==`popstate`)try{window.scrollTo({top:0,left:0})}catch(i){LV(`scroll-to-top-on-entry`,i)}})}export{f as t};

@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
 
 import { CertificateClaimService } from '@shared/services/features/interview/certificate-claim.service';
 import { CertificateClaimApiError } from '@shared/services/api/certificate-claim-api.errors';
+import { scrollToTopOnEntry } from '@shared/utils/scroll-to-top-on-entry';
 import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-toggle.component';
 
 type ViewState = 'loading' | 'preview' | 'confirming' | 'confirmed' | 'error';
@@ -38,6 +39,10 @@ type ViewState = 'loading' | 'preview' | 'confirming' | 'confirmed' | 'error';
 })
 export class InterviewCertificateVerifyComponent implements OnInit {
   private readonly claimService = inject(CertificateClaimService);
+
+  constructor() {
+    scrollToTopOnEntry();
+  }
 
   readonly view = signal<ViewState>('loading');
   readonly claimedName = signal('');

@@ -21,6 +21,7 @@ import {
 import { CertificateClaimService } from '@shared/services/features/interview/certificate-claim.service';
 import { InterviewReadinessService } from '@shared/services/features/interview/interview-readiness.service';
 import { InterviewHistoryService } from '@shared/services/features/interview/interview-history.service';
+import { scrollToTopOnEntry } from '@shared/utils/scroll-to-top-on-entry';
 import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-toggle.component';
 
 /**
@@ -56,6 +57,10 @@ export class InterviewCertificateComponent implements OnInit {
   private readonly claimService = inject(CertificateClaimService);
   private readonly readinessService = inject(InterviewReadinessService);
   private readonly historyService = inject(InterviewHistoryService);
+
+  constructor() {
+    scrollToTopOnEntry();
+  }
 
   readonly title = CERTIFICATE_TITLE;
   readonly requiredInterviews = REQUIRED_CERTIFICATE_INTERVIEWS;

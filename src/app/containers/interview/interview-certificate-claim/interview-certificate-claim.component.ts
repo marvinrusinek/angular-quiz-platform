@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
 
 import { CertificateClaimService } from '@shared/services/features/interview/certificate-claim.service';
 import { swallow } from '@shared/utils/error-logging';
+import { scrollToTopOnEntry } from '@shared/utils/scroll-to-top-on-entry';
 import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-toggle.component';
 
 /**
@@ -37,6 +38,10 @@ import { ThemeToggleComponent } from '../../../components/theme-toggle/theme-tog
 })
 export class InterviewCertificateClaimComponent {
   private readonly claimService = inject(CertificateClaimService);
+
+  constructor() {
+    scrollToTopOnEntry();
+  }
 
   readonly apiConfigured = this.claimService.apiConfigured;
   readonly busy = this.claimService.busy;

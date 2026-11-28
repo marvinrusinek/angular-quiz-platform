@@ -13,9 +13,6 @@ import { InterviewResultsComponent } from '../containers/interview/interview-res
 import { InterviewReportComponent } from '../containers/interview/interview-report/interview-report.component';
 import { InterviewHistoryComponent } from '../containers/interview/interview-history/interview-history.component';
 import { InterviewHistoryDetailComponent } from '../containers/interview/interview-history-detail/interview-history-detail.component';
-import { InterviewCertificateComponent } from '../containers/interview/interview-certificate/interview-certificate.component';
-import { InterviewCertificateClaimComponent } from '../containers/interview/interview-certificate-claim/interview-certificate-claim.component';
-import { InterviewCertificateVerifyComponent } from '../containers/interview/interview-certificate-verify/interview-certificate-verify.component';
 
 import { QuizGuard } from './guards/quiz-guard';
 import { QuizResultGuard } from './guards/quiz-result-guard';
@@ -126,22 +123,34 @@ export const routes: Routes = [
   },
   // Angular Interview Master Certificate — the certificate view. Read-only and
   // deep-linkable; shows a friendly locked state until it has been unlocked.
+  // The three certificate pages are lazy-loaded (one chunk each, fetched on first
+  // navigation and precached by the service worker), so they are not part of the
+  // initial bundle. Paths, order and behaviour are unchanged; the routes are unguarded.
   {
     path: 'interview/certificate',
-    component: InterviewCertificateComponent
+    loadComponent: () =>
+      import('../containers/interview/interview-certificate/interview-certificate.component').then(
+        (m) => m.InterviewCertificateComponent
+      )
   },
   // Required name/verified-email claim form (new issuance, or recovery of an
   // existing one via the same form). More specific path listed first.
   {
     path: 'interview/certificate/claim',
-    component: InterviewCertificateClaimComponent
+    loadComponent: () =>
+      import('../containers/interview/interview-certificate-claim/interview-certificate-claim.component').then(
+        (m) => m.InterviewCertificateClaimComponent
+      )
   },
   // The emailed verification link's confirmation page. Reads the raw token
   // from the URL FRAGMENT only — see the component's own doc comment for why
   // it never auto-verifies on load.
   {
     path: 'interview/certificate/verify',
-    component: InterviewCertificateVerifyComponent
+    loadComponent: () =>
+      import('../containers/interview/interview-certificate-verify/interview-certificate-verify.component').then(
+        (m) => m.InterviewCertificateVerifyComponent
+      )
   },
 
   // Weak Areas Practice — untimed learning session generated from the user's

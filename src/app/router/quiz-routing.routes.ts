@@ -25,7 +25,6 @@ import { WeakAreasPracticeComponent } from '../containers/practice/weak-areas-pr
 import { WeakAreasPracticeResultsComponent } from '../containers/practice/weak-areas-practice-results/weak-areas-practice-results.component';
 import { BackendInterviewResultGuard } from './guards/backend-interview-result-guard';
 import { interviewHistoryFragmentGuard } from './guards/interview-history-fragment-guard';
-import { ProgressPageComponent } from '../containers/progress/progress-page.component';
 
 export const routes: Routes = [
   {
@@ -168,10 +167,15 @@ export const routes: Routes = [
   // ONE attempt; Interview History is individual Interview attempts). Top-level
   // rather than under results/, where `results/:quizId` would capture it as a quiz
   // id. Deliberately UNGUARDED: a user with no history gets an empty state, not a
-  // redirect, so the URL always works.
+  // redirect, so the URL always works. Lazy-loaded like Interview Readiness and Topic
+  // Trends: its own chunk, fetched on first navigation (and precached by the service
+  // worker), so it is not part of the initial bundle.
   {
     path: 'progress',
-    component: ProgressPageComponent
+    loadComponent: () =>
+      import('../containers/progress/progress-page.component').then(
+        (m) => m.ProgressPageComponent
+      )
   },
   // Backward compatibility redirects
   { path: 'select', redirectTo: 'quiz', pathMatch: 'full' },

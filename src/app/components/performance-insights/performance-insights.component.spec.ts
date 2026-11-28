@@ -75,8 +75,16 @@ describe('PerformanceInsightsComponent', () => {
     fixture.detectChanges();
   };
 
-  const norm = (node: Element | null | undefined): string =>
-    (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  /** The VISIBLE text: the exposed Narrator text nodes (a transparent copy of it) are left out. */
+  const norm = (node: Element | null | undefined): string => {
+    if (!node) return '';
+    const copy = node.cloneNode(true) as Element;
+    copy.querySelectorAll('.intro-exposed-text').forEach((e) => e.remove());
+    return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+  };
+  /** What Narrator reads: one entry per exposed text node, in DOM (reading) order. */
+  const spoken = (node: Element | null | undefined): string[] =>
+    Array.from(node?.querySelectorAll('.intro-exposed-text') ?? []).map((e) => e.textContent ?? '');
   const q = (sel: string): HTMLElement | null => el.querySelector<HTMLElement>(sel);
   const qa = (sel: string): HTMLElement[] => Array.from(el.querySelectorAll<HTMLElement>(sel));
   const section = (headingId: string): HTMLElement | null =>
@@ -250,19 +258,13 @@ describe('PerformanceInsightsComponent', () => {
 
     it('exposes the change to assistive tech in words', () => {
       show(insightsFrom({ topicRecords: quizRecords(84, 78) }));
-      expect(recent('topic-quiz')!.querySelector('.pi__figure')!.getAttribute('aria-label')).toBe(
-        'up 6 percentage points'
-      );
+      expect(spoken(recent('topic-quiz'))[0]).toContain('Topic Quiz, up 6 percentage points,');
 
       show(insightsFrom({ topicRecords: quizRecords(60, 90) }));
-      expect(recent('topic-quiz')!.querySelector('.pi__figure')!.getAttribute('aria-label')).toBe(
-        'down 30 percentage points'
-      );
+      expect(spoken(recent('topic-quiz'))[0]).toContain('Topic Quiz, down 30 percentage points,');
 
       show(insightsFrom({ topicRecords: quizRecords(80, 80) }));
-      expect(recent('topic-quiz')!.querySelector('.pi__figure')!.getAttribute('aria-label')).toBe(
-        'no change, 0 percentage points'
-      );
+      expect(spoken(recent('topic-quiz'))[0]).toContain('Topic Quiz, no change, 0 percentage points,');
     });
 
     it('never labels a change good, bad, improving or declining', () => {
@@ -581,7 +583,8 @@ describe('PerformanceInsightsComponent', () => {
       show(full());
       expect(q('table')).toBeNull();
       expect(qa('ul.pi__list').length).toBeGreaterThan(0);
-      expect(qa('[style]')).toHaveLength(0);
+      // (the exposed Narrator text nodes carry the directive's own positioning style)
+      expect(qa('[style]:not(.intro-exposed-text):not([role="group"])')).toHaveLength(0);
     });
 
     it('makes the topic toggle a real button with aria-expanded', () => {
@@ -681,7 +684,7 @@ describe('PerformanceInsightsComponent', () => {
       expect(dividers()).toHaveLength(0);
     });
 
-    it('adds nothing to the heading structure or the accessible region labels', () => {
+    it('adds nothing to the heading structure or the accessible region labels (see also: Narrator reading stops)', () => {
       show(everything());
       expect(qa('h3').map((h) => norm(h))).toEqual([
         'Performance Overview',
@@ -695,6 +698,182 @@ describe('PerformanceInsightsComponent', () => {
           (s) => !!el.querySelector(`#${s.getAttribute('aria-labelledby')}`)
         )
       ).toBe(true);
+    });
+  });
+
+  // ── Narrator: one reading stop per group ──────────────────────────
+  // Every stop is a role="group" holding hidden visible text and ONE exposed text node (see IntroExposedTextDirective).
+  // The lists carry no list semantics, the values are plain text (no image role), and the spoken text uses "out of".
+
+  describe('Narrator reading stops', () => {
+    const mixed = (): PerformanceInsights =>
+      insightsFrom({
+        topicRecords: [...quizRecords(), rec('p1', 'weak-areas-practice', 5, 1, 10)],
+        interviewAttempts: [
+          { id: 'i1', completedAt: day(2), score: 6, totalQuestions: 10 },
+          { id: 'i2', completedAt: day(6), score: 9, totalQuestions: 10 }
+        ],
+        attempts: [
+          att(1, [
+            ['signals', 3, 9],
+            ['http', 2, 3],
+            ['di', 18, 25],
+            ['router', 21, 22],
+            ['forms', 10, 11],
+            ['pipes', 10, 10],
+            ['tiny', 2, 2]
+          ])
+        ]
+      });
+
+    it('Performance Overview: each card is ONE stop — name, percentage, questions, attempts, description', () => {
+      show(mixed());
+      expect(spoken(overview('topic-quiz'))).toEqual([
+        'Topic Quiz, 81%,\n324 out of 400 questions, 4 attempts,\nInstant feedback, retries allowed'
+      ]);
+      expect(spoken(overview('interview'))).toEqual([
+        'Interview Mode, 75%,\n15 out of 20 questions, 2 attempts,\nOne submission, no feedback until the end'
+      ]);
+      expect(spoken(overview('weak-areas-practice'))).toEqual([
+        'Weak Areas Practice, 10%,\n1 out of 10 questions, 1 attempt,\nQuestions are drawn from your weaker topics'
+      ]);
+      for (const src of ['topic-quiz', 'interview', 'weak-areas-practice']) {
+        const card = overview(src)!;
+        expect(card.querySelectorAll('[role="group"]')).toHaveLength(1);
+        expect(card.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+        expect(card.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+        // no trailing period in what is spoken
+        expect(spoken(card)[0]).not.toMatch(/\.$/);
+      }
+    });
+
+    it('Performance Overview keeps its visible text and punctuation', () => {
+      show(mixed());
+      // (name and percentage are flex items, so no spaces between them in the markup)
+      expect(norm(overview('topic-quiz'))).toBe(
+        'Topic Quiz81%324 / 400 questions · 4 attemptsInstant feedback, retries allowed.'
+      );
+    });
+
+    it('Performance Overview with a zero count still reads every part', () => {
+      show(insightsFrom({ topicRecords: [rec('q1', 'topic-quiz', 1, 0, 4)] }));
+      expect(spoken(overview('topic-quiz'))).toEqual([
+        'Topic Quiz, 0%,\n0 out of 4 questions, 1 attempt,\nInstant feedback, retries allowed'
+      ]);
+    });
+
+    it('Recent Performance: each card is ONE stop — name, change, Recent, Previous, comparison', () => {
+      show(mixed());
+      expect(spoken(recent('topic-quiz'))).toEqual([
+        'Topic Quiz, up 6 percentage points,\nRecent 84%, Previous 78%,\nLatest 2 attempts, 168 out of 200 questions, compared with the 2 before, 156 out of 200'
+      ]);
+      const card = recent('topic-quiz')!;
+      expect(card.querySelectorAll('[role="group"]')).toHaveLength(1);
+      expect(card.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+      expect(card.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+      expect(spoken(card)[0]).not.toMatch(/\.$/);
+      // the visible text keeps its punctuation
+      expect(norm(card)).toContain('Recent 84% · Previous 78%');
+      expect(norm(card)).toContain('(168 / 200 questions) compared with the 2 before (156 / 200).');
+    });
+
+    it('Recent Performance: negative, unchanged and "1 attempt" wording', () => {
+      show(insightsFrom({ topicRecords: quizRecords(60, 90) }));
+      expect(spoken(recent('topic-quiz'))[0].split('\n')[0]).toBe('Topic Quiz, down 30 percentage points,');
+      show(insightsFrom({ topicRecords: quizRecords(80, 80) }));
+      expect(spoken(recent('topic-quiz'))[0].split('\n')[0]).toBe('Topic Quiz, no change, 0 percentage points,');
+    });
+
+    it('Recent Performance with no comparison: the name and the reason together, in one stop', () => {
+      show(insightsFrom({ topicRecords: [rec('q1', 'topic-quiz', 1, 3, 4)] }));
+      expect(spoken(recent('topic-quiz'))).toEqual(['Topic Quiz,\nNot enough history for a comparison yet']);
+      expect(recent('topic-quiz')!.querySelectorAll('[role="group"]')).toHaveLength(1);
+      expect(norm(recent('topic-quiz'))).toContain('Not enough history for a comparison yet.');
+    });
+
+    it('Performance by Topic: a topic and its percentage together, then its question count', () => {
+      show(mixed());
+      (q('.pi__toggle') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      const row = (id: string): HTMLElement =>
+        q(`section[aria-labelledby="pi-topics-heading"] li[data-topic="${id}"]`)!;
+      // ONE exposed text node per topic: name, percentage and question count (one line per visible line)
+      expect(spoken(row('signals'))).toEqual(['SIGNALS, 33%,\n3 out of 9 questions']);
+      expect(spoken(row('router'))).toEqual(['ROUTER, 95%,\n21 out of 22 questions']);
+    });
+
+    it('Performance by Topic: an under-sampled topic reads its name, then its counts and why it is not rated', () => {
+      show(mixed());
+      const tiny = q('section[aria-labelledby="pi-topics-heading"] li[data-topic="tiny"]');
+      // only the first five topics show until expanded
+      if (tiny) {
+        expect(spoken(tiny)).toEqual(['TINY,\n2 out of 2 questions, too few answers to rate yet']);
+      } else {
+        (q('.pi__toggle') as HTMLButtonElement).click();
+        fixture.detectChanges();
+        expect(
+          spoken(q('section[aria-labelledby="pi-topics-heading"] li[data-topic="tiny"]'))
+        ).toEqual(['TINY,\n2 out of 2 questions, too few answers to rate yet']);
+      }
+    });
+
+    it('uses "1 question", not "1 questions", when the total is one', () => {
+      show(insightsFrom({ attempts: [att(1, [['one', 1, 1]])] }));
+      const row = q('section[aria-labelledby="pi-topics-heading"] li[data-topic="one"]')!;
+      expect(spoken(row)).toEqual(['ONE,\n1 out of 1 question, too few answers to rate yet']);
+    });
+
+    it.each([
+      ['pi-strongest-heading', ['pipes', 'router', 'forms'], [['PIPES, 100%,\n10 out of 10 questions'], ['ROUTER, 95%,\n21 out of 22 questions'], ['FORMS, 91%,\n10 out of 11 questions']]],
+      ['pi-review-heading', ['signals', 'http', 'di'], [['SIGNALS, 33%,\n3 out of 9 questions'], ['HTTP, 67%,\n2 out of 3 questions'], ['DI, 72%,\n18 out of 25 questions']]]
+    ])('%s: each topic, its percentage and its question count are ONE stop, in ranking order', (headingId, ids, expected) => {
+      show(mixed());
+      const rows = qa(`section[aria-labelledby="${headingId}"] ul > li`);
+      expect(rows.map((r) => r.dataset['topic'])).toEqual(ids);
+      expect(rows.map((r) => spoken(r))).toEqual(expected);
+      // one group, one exposed node, over the visible name, figure and count
+      for (const r of rows) {
+        expect(r.querySelectorAll('[role="group"]')).toHaveLength(1);
+        const pair = r.querySelector('.pi__stop--row')!;
+        expect(pair.getAttribute('role')).toBe('group');
+        expect(pair.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+        expect(pair.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+      }
+    });
+
+    it('Strongest Topics empty state reads the same sentence the panel shows', () => {
+      show(insightsFrom({ attempts: [att(1, [['weak', 2, 10]])] }));
+      expect(spoken(section('pi-strongest-heading'))).toEqual([
+        'No topic qualifies yet. A topic needs at least 3 answered questions and 80% or better.'
+      ]);
+    });
+
+    it('has no list semantics, no image role, and exactly one exposed text node per group', () => {
+      show(mixed());
+      for (const ul of qa('ul.pi__list')) expect(ul.getAttribute('role')).toBe('none');
+      for (const li of qa('li')) expect(li.getAttribute('role')).toBe('none');
+      expect(q('[role="img"], svg, img')).toBeNull();
+      for (const g of qa('[role="group"]')) {
+        expect(g.querySelectorAll('.intro-exposed-text')).toHaveLength(1);
+        expect(g.querySelector('.intro-exposed-text')!.childNodes).toHaveLength(1);
+        expect(g.querySelector('[data-intro-visible]')!.getAttribute('aria-hidden')).toBe('true');
+      }
+      // nothing visible is left exposed next to its transparent copy
+      expect(qa('[aria-label]')).toHaveLength(0);
+    });
+
+    it('keeps the section headings, the toggle button and the interview link as they were', () => {
+      show(mixed());
+      expect(qa('h3').map((h) => norm(h))).toEqual([
+        'Performance Overview',
+        'Recent Performance',
+        'Performance by Topic',
+        'Strongest Topics',
+        'Needs Review'
+      ]);
+      expect(norm(q('.pi__toggle'))).toBe('Show all 7 topics');
+      expect(norm(q('a.pi__link'))).toBe('View interview history');
+      expect(q('.pi__toggle')!.hasAttribute('aria-label')).toBe(false);
     });
   });
 });

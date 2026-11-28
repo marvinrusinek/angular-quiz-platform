@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { InsightSource, PerformanceInsights, SourceSummary } from '@shared/models';
 import { WEAK_AREA_MIN_ANSWERED, WEAK_AREA_THRESHOLD } from '@shared/utils/weak-areas';
+import { IntroExposedTextDirective } from '../../containers/introduction/intro-exposed-text.directive';
 
 /** What each source measures, shown next to its numbers so they are never read as one thing. */
 const SOURCE_META: Record<InsightSource, { name: string; basis: string }> = {
@@ -43,7 +44,7 @@ export const TOPICS_COLLAPSED_COUNT = 5;
   selector: 'codelab-performance-insights',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [RouterLink, IntroExposedTextDirective],
   templateUrl: './performance-insights.component.html',
   styleUrls: ['./performance-insights.component.scss']
 })
@@ -133,4 +134,64 @@ export class PerformanceInsightsComponent {
   protected plural(n: number, noun: string): string {
     return `${n} ${noun}${n === 1 ? '' : 's'}`;
   }
+
+  // ── What Narrator reads ─────────────────────────────────────────────
+  // Each reading stop exposes ONE text node (see IntroExposedTextDirective). These build that text from the same data as
+  // the visible text, with "out of" in place of the slash. Nothing here changes a number or its order.
+
+  /** "808 out of 1031 questions" ("1 question" for a single one). */
+  protected questionsSpoken(correct: number, total: number): string {
+    return `${correct} out of ${total} ${total === 1 ? 'question' : 'questions'}`;
+  }
+
+  /** One topic as ONE stop: "RxJS, 50%," then "7 out of 14 questions" (one line per visible line). */
+  protected topicSpoken(t: { topicName: string; percentage: number; correct: number; total: number }): string {
+    return `${t.topicName}, ${t.percentage}%,
+${this.questionsSpoken(t.correct, t.total)}`;
+  }
+
+  /**
+   * A whole Overview card as ONE stop, one line per visible line: "Topic Quiz, 78%," / "808 out of 1031 questions,
+   * 138 attempts," / the description without its final period (Narrator would say "dot").
+   */
+  protected overviewSpoken(s: SourceSummary): string {
+    const basis = this.meta[s.source].basis.replace(/\.$/, '');
+    return [
+      `${this.meta[s.source].name}, ${s.accuracyPct}%,`,
+      `${this.questionsSpoken(s.correct, s.total)}, ${this.plural(s.attempts, 'attempt')},`,
+      basis
+    ].join('\n');
+  }
+
+  /** An under-sampled topic: no percentage is invented. */
+  protected underSampledTopicSpoken(t: { topicName: string; correct: number; total: number }): string {
+    return `${t.topicName},
+${this.underSampledSpoken(t.correct, t.total)}`;
+  }
+
+  /**
+   * A whole Recent Performance card as ONE stop, one line per visible line: the name and the change in words, then
+   * Recent and Previous, then the comparison sentence with "out of" and no final period. With no comparison: the name,
+   * then the reason.
+   */
+  protected recentSpoken(s: SourceSummary): string {
+    const name = this.meta[s.source].name;
+    const c = s.comparison;
+    if (!c) return `${name},\nNot enough history for a comparison yet`;
+    return [
+      `${name}, ${this.deltaAria(c.deltaPts)},`,
+      `Recent ${c.recent.accuracyPct}%, Previous ${c.previous.accuracyPct}%,`,
+      `Latest ${this.plural(c.recent.attempts, 'attempt')}, ` +
+        `${this.questionsSpoken(c.recent.correct, c.recent.total)}, ` +
+        `compared with the ${c.previous.attempts} before, ${c.previous.correct} out of ${c.previous.total}`
+    ].join('\n');
+  }
+
+  /** "2 out of 2 questions, too few answers to rate yet". */
+  protected underSampledSpoken(correct: number, total: number): string {
+    return `${this.questionsSpoken(correct, total)}, too few answers to rate yet`;
+  }
+
+
+  protected readonly noStrongestSpoken = `No topic qualifies yet. A topic needs at least ${this.minAnswered} answered questions and ${this.threshold}% or better.`;
 }

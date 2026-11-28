@@ -126,7 +126,9 @@ describe('Practice Weak Areas action — activation', () => {
     const body = text(fixture);
     expect(body).toContain('RxJS');
     expect(body).toContain('Signals');
-    expect(action(fixture)!.getAttribute('aria-label')).toBe('Practice weak areas: RxJS, Signals');
+    // the button's own name is its visible text only; the topics are read in the Needs Review group
+    expect(action(fixture)!.hasAttribute('aria-label')).toBe(false);
+    expect(action(fixture)!.textContent!.trim()).toBe('Practice Weak Areas');
   });
 
   it('rounds the displayed percentages', () => {
@@ -223,14 +225,15 @@ describe('Needs Review — one topic per row', () => {
     expect((items(fixture)[0].textContent ?? '').trim()).toBe('Angular Signals — 33%');
   });
 
-  it('leaves the Practice action and its accessible label exactly as they were', () => {
+  it('names the Practice action by its visible text only (no quiz names or percentages)', () => {
     weakTopics.set(THREE);
     const fixture = mount();
-    expect(action(fixture)).not.toBeNull();
-    expect(action(fixture)!.textContent!.trim()).toBe('Practice Weak Areas');
-    expect(action(fixture)!.getAttribute('aria-label')).toBe(
-      'Practice weak areas: Angular Signals, Angular HTTP, Dependency Injection'
-    );
+    const btn = action(fixture)!;
+    expect(btn).not.toBeNull();
+    expect(btn.textContent!.trim()).toBe('Practice Weak Areas');
+    expect(btn.hasAttribute('aria-label')).toBe(false);
+    expect(btn.hasAttribute('aria-labelledby')).toBe(false);
+    expect(btn.hasAttribute('aria-describedby')).toBe(false);
   });
 });
 

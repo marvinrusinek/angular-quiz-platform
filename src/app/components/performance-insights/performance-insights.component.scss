@@ -63,6 +63,53 @@
   gap: 1px 12px;
 }
 
+// NARRATOR: one reading stop = one group (the visible text is hidden from assistive technology and ONE exposed text node
+// is laid out over it). The group is as wide as its text, so Narrator's rectangle hugs it; the pair rows (a topic and its
+// percentage) are as wide as the row they are.
+.pi__stop {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.pi__stop--row {
+  display: block;
+}
+
+// One topic: its name and percentage on one row, its question count below — a single reading stop.
+.pi__topic-visible {
+  display: block;
+}
+
+.pi__row-visible {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1px 12px;
+}
+
+// A line of supporting text under the name and figure.
+.pi__line {
+  display: block;
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.pi__item--stacked {
+  display: block;
+}
+
+.pi__item--stacked > .pi__line {
+  margin-top: 1px;
+}
+
+.pi__sep {
+  font-size: 12px;
+  color: var(--text-secondary, #555555);
+}
+
 .pi__name {
   min-width: 0;
   font-size: 13px;
@@ -143,7 +190,8 @@
 }
 
 @media (max-width: 600px) {
-  .pi__item {
+  .pi__item,
+  .pi__row-visible {
     gap: 1px 8px;
   }
 }

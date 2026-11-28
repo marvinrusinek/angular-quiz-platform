@@ -64,7 +64,13 @@ describe('ProgressPageComponent', () => {
 
   const q = (sel: string): HTMLElement | null => el.querySelector<HTMLElement>(sel);
   const qa = (sel: string): HTMLElement[] => Array.from(el.querySelectorAll<HTMLElement>(sel));
-  const text = (n: Element | null): string => (n?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  /** The VISIBLE text: the exposed Narrator text nodes (a transparent copy of it) are left out. */
+  const text = (n: Element | null): string => {
+    if (!n) return '';
+    const copy = n.cloneNode(true) as Element;
+    copy.querySelectorAll('.intro-exposed-text').forEach((e) => e.remove());
+    return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+  };
   const link = (label: string): HTMLAnchorElement | undefined =>
     qa('a').find((a) => text(a) === label) as HTMLAnchorElement | undefined;
 

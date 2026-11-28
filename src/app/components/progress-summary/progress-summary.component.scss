@@ -41,13 +41,21 @@
 }
 
 .progress-summary__stat {
+  position: relative; /* the group the exposed Narrator text is laid out in */
   margin: 0;
-  /* column-reverse: DOM is label→value (screen readers hear "Average Score,
-   80%"), but the value shows on top like a stat tile. */
+  text-align: center;
+}
+
+/* column-reverse: DOM is label→value (Narrator reads "Average Score, 80%"), but the value shows on top like a stat
+ tile. The visible label and value sit in one block as wide as their text, centred in the cell, so the exposed text
+ (and Narrator's rectangle) hugs the text. The cell itself is unchanged. */
+.progress-summary__stat-visible {
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
   gap: 2px;
+  width: fit-content;
+  margin: 0 auto;
   text-align: center;
 }
 
@@ -87,10 +95,25 @@
 }
 
 .progress-summary__row {
+  position: relative; /* the group the exposed Narrator text is laid out in */
+}
+
+/* The visible row: label on one side, value (and bar) on the other. It is hidden from assistive technology, and the
+ group exposes ONE text node over it. */
+.progress-summary__row-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* The exposed text spans the full width of its box, last line included, so Narrator's rectangle matches the visible
+ content. !important because the directive sets text-align inline. */
+.progress-summary__row .intro-exposed-text,
+.progress-summary__stats .intro-exposed-text {
+  text-align: justify !important;
+  text-align-last: justify !important;
+  text-justify: inter-character;
 }
 
 .progress-summary__label {
@@ -143,7 +166,7 @@
   gap: 12px;
 }
 
-.progress-summary__rows--highlights .progress-summary__row {
+.progress-summary__rows--highlights .progress-summary__row-visible {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;

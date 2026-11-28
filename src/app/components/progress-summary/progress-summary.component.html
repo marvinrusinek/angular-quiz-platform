@@ -16,79 +16,111 @@
         </h2>
       }
 
+      <!-- NARRATOR: every row below is ONE group and ONE reading stop. Its visible label, value and bar are hidden from
+           assistive technology (data-intro-visible + aria-hidden) and the group exposes ONE text node with the whole phrase,
+           built from the same data (see IntroExposedTextDirective), so "Overall Progress, 100%" is read once with one
+           rectangle. The dl elements are role="none" (no "1 of 3" list positions) and the bars are decorative here: the
+           same numbers are in the phrase. -->
+
       <!-- Completed count is header-owned in the accordion, so it's shown only
            in the 'full' variant. The Overall Progress bar shows in both. -->
-      <dl class="progress-summary__rows">
+      <dl class="progress-summary__rows" role="none">
         @if (variant() === 'full') {
-          <div class="progress-summary__row">
-            <dt
-              class="progress-summary__label"
-              i18n
-            >
-              Completed
-            </dt>
-            <dd class="progress-summary__value">{{ s.completedCount }} / {{ s.totalCount }}</dd>
+          <div class="progress-summary__row" role="group">
+            <span class="progress-summary__row-visible" data-intro-visible aria-hidden="true">
+              <dt
+                class="progress-summary__label"
+                data-intro-font-ref
+                i18n
+              >
+                Completed
+              </dt>
+              <dd class="progress-summary__value">{{ s.completedCount }} / {{ s.totalCount }}</dd>
+            </span>
+            <span
+              [appIntroExposedText]="completedSpoken(s)"
+              exposedTextMode="cover"
+              exposedTextBox="group"
+              exposedSingleRow
+            ></span>
           </div>
         }
 
-        <div class="progress-summary__row">
-          <dt
-            class="progress-summary__label"
-            i18n
-          >
-            Overall Progress
-          </dt>
-          <dd class="progress-summary__value">
-            <span class="progress-summary__pct">{{ s.completionPercentage }}%</span>
-            <span
-              class="progress-summary__bar"
-              role="progressbar"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              [attr.aria-valuenow]="s.completionPercentage"
-              [attr.aria-label]="'Overall progress: ' + s.completionPercentage + ' percent'"
+        <div class="progress-summary__row" role="group">
+          <span class="progress-summary__row-visible" data-intro-visible aria-hidden="true">
+            <dt
+              class="progress-summary__label"
+              data-intro-font-ref
+              i18n
             >
+              Overall Progress
+            </dt>
+            <dd class="progress-summary__value">
+              <span class="progress-summary__pct">{{ s.completionPercentage }}%</span>
               <span
-                class="progress-summary__bar-fill"
-                [style.width.%]="s.completionPercentage"
-              ></span>
-            </span>
-          </dd>
+                class="progress-summary__bar"
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="s.completionPercentage"
+                [attr.aria-label]="'Overall progress: ' + s.completionPercentage + ' percent'"
+              >
+                <span
+                  class="progress-summary__bar-fill"
+                  [style.width.%]="s.completionPercentage"
+                ></span>
+              </span>
+            </dd>
+          </span>
+          <span
+            [appIntroExposedText]="overallSpoken(s)"
+            exposedTextMode="cover"
+            exposedTextBox="group"
+            exposedSingleRow
+          ></span>
         </div>
       </dl>
 
       @if (s.byDifficulty.length > 0) {
-        <dl class="progress-summary__rows progress-summary__rows--difficulty">
+        <dl class="progress-summary__rows progress-summary__rows--difficulty" role="none">
           @for (level of s.byDifficulty; track level.difficulty) {
-            <div class="progress-summary__row">
-              <dt class="progress-summary__label">{{ level.difficulty | titlecase }}</dt>
-              <dd class="progress-summary__value">
-                <span class="progress-summary__count">
-                  {{ level.completed }} / {{ level.total }}
-                </span>
-                <span
-                  class="progress-summary__bar"
-                  role="progressbar"
-                  aria-valuemin="0"
-                  [attr.aria-valuemax]="level.total"
-                  [attr.aria-valuenow]="level.completed"
-                  [attr.aria-label]="
-                    (level.difficulty | titlecase) +
-                    ': ' +
-                    level.completed +
-                    ' of ' +
-                    level.total +
-                    ' completed'
-                  "
-                >
+            <div class="progress-summary__row" role="group">
+              <span class="progress-summary__row-visible" data-intro-visible aria-hidden="true">
+                <dt class="progress-summary__label" data-intro-font-ref>{{ level.difficulty | titlecase }}</dt>
+                <dd class="progress-summary__value">
+                  <span class="progress-summary__count">
+                    {{ level.completed }} / {{ level.total }}
+                  </span>
                   <span
-                    class="progress-summary__bar-fill"
-                    [style.width.%]="
-                      level.total > 0 ? (level.completed / level.total) * 100 : 0
+                    class="progress-summary__bar"
+                    role="progressbar"
+                    aria-valuemin="0"
+                    [attr.aria-valuemax]="level.total"
+                    [attr.aria-valuenow]="level.completed"
+                    [attr.aria-label]="
+                      (level.difficulty | titlecase) +
+                      ': ' +
+                      level.completed +
+                      ' of ' +
+                      level.total +
+                      ' completed'
                     "
-                  ></span>
-                </span>
-              </dd>
+                  >
+                    <span
+                      class="progress-summary__bar-fill"
+                      [style.width.%]="
+                        level.total > 0 ? (level.completed / level.total) * 100 : 0
+                      "
+                    ></span>
+                  </span>
+                </dd>
+              </span>
+              <span
+                [appIntroExposedText]="difficultySpoken(level)"
+                exposedTextMode="cover"
+                exposedTextBox="group"
+                exposedSingleRow
+              ></span>
             </div>
           }
         </dl>
@@ -96,54 +128,65 @@
 
       <!-- Key stats (derived in ProgressService). Shown beneath the existing
            progress info; always present so 0-values appear when nothing is
-           completed yet. -->
-      <dl
-        class="progress-summary__stats"
-        aria-label="Key stats"
-        i18n-aria-label
-      >
-        <div class="progress-summary__stat">
-          <dt
-            class="progress-summary__stat-label"
-            i18n
-          >
-            Average Score
-          </dt>
-          <dd class="progress-summary__stat-value">{{ s.averageScore }}%</dd>
+           completed yet. Each stat is one group, one stop: "Label, value". -->
+      <dl class="progress-summary__stats" role="none">
+        <div class="progress-summary__stat" role="group">
+          <span class="progress-summary__stat-visible" data-intro-visible aria-hidden="true">
+            <dt
+              class="progress-summary__stat-label"
+              data-intro-font-ref
+              i18n
+            >
+              Average Score
+            </dt>
+            <dd class="progress-summary__stat-value">{{ s.averageScore }}%</dd>
+          </span>
+          <span [appIntroExposedText]="statSpoken(labels.averageScore, s.averageScore + '%')" exposedTextMode="cover"></span>
         </div>
-        <div class="progress-summary__stat">
-          <dt
-            class="progress-summary__stat-label"
-            i18n
-          >
-            Perfect Scores
-          </dt>
-          <dd class="progress-summary__stat-value">{{ s.perfectScores }}</dd>
+        <div class="progress-summary__stat" role="group">
+          <span class="progress-summary__stat-visible" data-intro-visible aria-hidden="true">
+            <dt
+              class="progress-summary__stat-label"
+              data-intro-font-ref
+              i18n
+            >
+              Perfect Scores
+            </dt>
+            <dd class="progress-summary__stat-value">{{ s.perfectScores }}</dd>
+          </span>
+          <span [appIntroExposedText]="statSpoken(labels.perfectScores, s.perfectScores)" exposedTextMode="cover"></span>
         </div>
-        <div class="progress-summary__stat">
-          <dt
-            class="progress-summary__stat-label"
-            i18n
-          >
-            Questions Completed
-          </dt>
-          <dd class="progress-summary__stat-value">{{ s.questionsCompleted }}</dd>
+        <div class="progress-summary__stat" role="group">
+          <span class="progress-summary__stat-visible" data-intro-visible aria-hidden="true">
+            <dt
+              class="progress-summary__stat-label"
+              data-intro-font-ref
+              i18n
+            >
+              Questions Completed
+            </dt>
+            <dd class="progress-summary__stat-value">{{ s.questionsCompleted }}</dd>
+          </span>
+          <span [appIntroExposedText]="statSpoken(labels.questionsCompleted, s.questionsCompleted)" exposedTextMode="cover"></span>
         </div>
       </dl>
 
       @if (s.strongestQuiz || s.weakestQuiz || weakTopics().length > 0) {
-        <dl class="progress-summary__rows progress-summary__rows--highlights">
+        <dl class="progress-summary__rows progress-summary__rows--highlights" role="none">
           @if (s.strongestQuiz; as strong) {
-            <div class="progress-summary__row">
-              <dt
-                class="progress-summary__label"
-                i18n
-              >
-                Strongest
-              </dt>
-              <dd class="progress-summary__value">
-                {{ strong.milestone }} — {{ strong.bestScore }}%
-              </dd>
+            <div class="progress-summary__row" role="group">
+              <span class="progress-summary__row-visible" data-intro-visible aria-hidden="true">
+                <dt
+                  class="progress-summary__label"
+                  i18n
+                >
+                  Strongest
+                </dt>
+                <dd class="progress-summary__value">
+                  {{ strong.milestone }} — {{ strong.bestScore }}%
+                </dd>
+              </span>
+              <span [appIntroExposedText]="strongestSpoken(strong)" exposedTextMode="justify"></span>
             </div>
           }
           <!-- Needs Review is driven by WeakAreasService, NOT the
@@ -151,27 +194,30 @@
                action below must offer exactly the topics named here, and a
                best-score percentage cannot say how many questions were
                answered. There is deliberately no percentage fallback. -->
-          <div class="progress-summary__row">
-            <dt
-              class="progress-summary__label"
-              i18n
-            >
-              Needs Review
-            </dt>
-            <dd class="progress-summary__value">
-              @if (weakTopics().length > 0) {
-                <ul class="progress-summary__weak-list">
-                  @for (t of weakTopics(); track t.topicId) {
-                    <!-- prettier-ignore -->
-                    <li class="progress-summary__weak-topic">{{ t.topicName }} — {{ t.percentage }}%</li>
-                  }
-                </ul>
-              } @else if (insufficientData()) {
-                <span i18n>Complete a quiz or interview to identify weak areas.</span>
-              } @else {
-                <span i18n>No weak areas detected.</span>
-              }
-            </dd>
+          <div class="progress-summary__row" role="group">
+            <span class="progress-summary__row-visible" data-intro-visible aria-hidden="true">
+              <dt
+                class="progress-summary__label"
+                i18n
+              >
+                Needs Review
+              </dt>
+              <dd class="progress-summary__value">
+                @if (weakTopics().length > 0) {
+                  <ul class="progress-summary__weak-list" role="none">
+                    @for (t of weakTopics(); track t.topicId) {
+                      <!-- prettier-ignore -->
+                      <li class="progress-summary__weak-topic" role="none">{{ t.topicName }} — {{ t.percentage }}%</li>
+                    }
+                  </ul>
+                } @else if (insufficientData()) {
+                  <span i18n>Complete a quiz or interview to identify weak areas.</span>
+                } @else {
+                  <span i18n>No weak areas detected.</span>
+                }
+              </dd>
+            </span>
+            <span [appIntroExposedText]="needsReviewSpoken()" exposedTextMode="justify"></span>
           </div>
         </dl>
 
@@ -182,7 +228,6 @@
           <button
             type="button"
             class="progress-summary__practice"
-            [attr.aria-label]="practiceAriaLabel()"
             (click)="startPractice()"
             i18n
           >

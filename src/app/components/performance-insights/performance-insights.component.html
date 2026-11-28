@@ -6,19 +6,36 @@
       <p class="pi__empty" i18n>Complete quizzes or interviews to build your performance history.</p>
     } @else {
 
+      <!-- NARRATOR: every reading stop below is ONE group (role="group", class pi__stop) holding its visible text, hidden
+           from assistive technology (data-intro-visible + aria-hidden), plus ONE exposed text node laid out over it (see
+           IntroExposedTextDirective). The lists and items carry no list semantics (no "1 of 3" positions). The spoken
+           text is built from the same data as the visible text, with "out of" in place of the slash. -->
+
       <!-- Each source keeps its own numbers and its own one-line basis. There is
-           deliberately no combined figure: they measure different things. -->
+           deliberately no combined figure: they measure different things.
+           Each card is ONE reading stop: name, percentage, questions, attempts, description. -->
       <section class="pi__section" aria-labelledby="pi-overview-heading">
         <h3 id="pi-overview-heading" class="pi__subheading" i18n>Performance Overview</h3>
-        <ul class="pi__list">
+        <ul class="pi__list" role="none">
           @for (s of sources(); track s.source) {
-            <li class="pi__item" [attr.data-source]="s.source">
-              <span class="pi__name">{{ meta[s.source].name }}</span>
-              <span class="pi__figure">{{ s.accuracyPct }}%</span>
-              <p class="pi__detail">
-                {{ s.correct }} / {{ s.total }} questions · {{ plural(s.attempts, 'attempt') }}
-              </p>
-              <p class="pi__basis">{{ meta[s.source].basis }}</p>
+            <li class="pi__item pi__item--stacked" role="none" [attr.data-source]="s.source">
+              <span class="pi__stop pi__stop--row" role="group">
+                <span class="pi__topic-visible" data-intro-visible aria-hidden="true">
+                  <span class="pi__row-visible">
+                    <span class="pi__name">{{ meta[s.source].name }}</span>
+                    <span class="pi__figure">{{ s.accuracyPct }}%</span>
+                  </span>
+                  <span class="pi__line">
+                    <span class="pi__detail">{{ s.correct }} / {{ s.total }} questions</span>
+                    <span class="pi__sep">&nbsp;·&nbsp;</span>
+                    <span class="pi__detail">{{ plural(s.attempts, 'attempt') }}</span>
+                  </span>
+                  <span class="pi__line">
+                    <span class="pi__basis">{{ meta[s.source].basis }}</span>
+                  </span>
+                </span>
+                <span [appIntroExposedText]="overviewSpoken(s)" exposedTextMode="justify"></span>
+              </span>
             </li>
           }
         </ul>
@@ -27,26 +44,39 @@
       <section class="pi__section" aria-labelledby="pi-recent-heading">
         <hr class="pi__divider" />
         <h3 id="pi-recent-heading" class="pi__subheading" i18n>Recent Performance</h3>
-        <ul class="pi__list">
+        <ul class="pi__list" role="none">
           @for (s of recentRows(); track s.source) {
-            <li class="pi__item" [attr.data-source]="s.source">
-              <span class="pi__name">{{ meta[s.source].name }}</span>
-              @if (s.comparison; as c) {
-                <span class="pi__figure" [attr.aria-label]="deltaAria(c.deltaPts)">
-                  {{ deltaLabel(c.deltaPts) }}
+            <li class="pi__item pi__item--stacked" role="none" [attr.data-source]="s.source">
+              <span class="pi__stop pi__stop--row" role="group">
+                <span class="pi__topic-visible" data-intro-visible aria-hidden="true">
+                  <span class="pi__row-visible">
+                    <span class="pi__name">{{ meta[s.source].name }}</span>
+                    @if (s.comparison; as c) {
+                      <span class="pi__figure">{{ deltaLabel(c.deltaPts) }}</span>
+                    }
+                  </span>
+                  @if (s.comparison; as c) {
+                    <span class="pi__line">
+                      <span class="pi__detail">Recent {{ c.recent.accuracyPct }}%</span>
+                      <span class="pi__sep">&nbsp;·&nbsp;</span>
+                      <span class="pi__detail">Previous {{ c.previous.accuracyPct }}%</span>
+                    </span>
+                    <span class="pi__line">
+                      <span class="pi__basis">
+                        Latest {{ plural(c.recent.attempts, 'attempt') }}
+                        ({{ c.recent.correct }} / {{ c.recent.total }} questions) compared with the
+                        {{ c.previous.attempts }} before
+                        ({{ c.previous.correct }} / {{ c.previous.total }}).
+                      </span>
+                    </span>
+                  } @else {
+                    <span class="pi__line">
+                      <span class="pi__detail pi__detail--muted" i18n>Not enough history for a comparison yet.</span>
+                    </span>
+                  }
                 </span>
-                <p class="pi__detail">
-                  Recent {{ c.recent.accuracyPct }}% · Previous {{ c.previous.accuracyPct }}%
-                </p>
-                <p class="pi__basis">
-                  Latest {{ plural(c.recent.attempts, 'attempt') }}
-                  ({{ c.recent.correct }} / {{ c.recent.total }} questions) compared with the
-                  {{ c.previous.attempts }} before
-                  ({{ c.previous.correct }} / {{ c.previous.total }}).
-                </p>
-              } @else {
-                <p class="pi__detail pi__detail--muted" i18n>Not enough history for a comparison yet.</p>
-              }
+                <span [appIntroExposedText]="recentSpoken(s)" exposedTextMode="justify"></span>
+              </span>
             </li>
           }
         </ul>
@@ -56,18 +86,35 @@
         <section class="pi__section" aria-labelledby="pi-topics-heading">
           <hr class="pi__divider" />
           <h3 id="pi-topics-heading" class="pi__subheading" i18n>Performance by Topic</h3>
-          <ul class="pi__list">
+          <ul class="pi__list" role="none">
             @for (t of visibleTopics(); track t.topicId) {
-              <li class="pi__item" [attr.data-topic]="t.topicId">
-                <span class="pi__name">{{ t.topicName }}</span>
+              <li class="pi__item pi__item--stacked" role="none" [attr.data-topic]="t.topicId">
                 @if (t.hasEnoughData) {
-                  <span class="pi__figure">{{ t.percentage }}%</span>
-                  <p class="pi__detail">{{ t.correct }} / {{ t.total }} questions</p>
+                  <span class="pi__stop pi__stop--row" role="group">
+                    <span class="pi__topic-visible" data-intro-visible aria-hidden="true">
+                      <span class="pi__row-visible">
+                        <span class="pi__name">{{ t.topicName }}</span>
+                        <span class="pi__figure">{{ t.percentage }}%</span>
+                      </span>
+                      <span class="pi__line">
+                        <span class="pi__detail">{{ t.correct }} / {{ t.total }} questions</span>
+                      </span>
+                    </span>
+                    <span [appIntroExposedText]="topicSpoken(t)" exposedTextMode="justify"></span>
+                  </span>
                 } @else {
-                  <p class="pi__detail">
-                    {{ t.correct }} / {{ t.total }} questions
-                    <span class="pi__detail--muted">· too few answers to rate yet</span>
-                  </p>
+                  <span class="pi__stop pi__stop--row" role="group">
+                    <span class="pi__topic-visible" data-intro-visible aria-hidden="true">
+                      <span class="pi__name">{{ t.topicName }}</span>
+                      <span class="pi__line">
+                        <span class="pi__detail">
+                          {{ t.correct }} / {{ t.total }} questions
+                          <span class="pi__detail--muted">· too few answers to rate yet</span>
+                        </span>
+                      </span>
+                    </span>
+                    <span [appIntroExposedText]="underSampledTopicSpoken(t)" exposedTextMode="justify"></span>
+                  </span>
                 }
               </li>
             }
@@ -92,20 +139,34 @@
           <hr class="pi__divider" />
           <h3 id="pi-strongest-heading" class="pi__subheading" i18n>Strongest Topics</h3>
           @if (strongest().length > 0) {
-            <ul class="pi__list">
+            <ul class="pi__list" role="none">
               @for (t of strongest(); track t.topicId) {
-                <li class="pi__item" [attr.data-topic]="t.topicId">
-                  <span class="pi__name">{{ t.topicName }}</span>
-                  <span class="pi__figure">{{ t.percentage }}%</span>
-                  <p class="pi__detail">{{ t.correct }} / {{ t.total }} questions</p>
+                <li class="pi__item pi__item--stacked" role="none" [attr.data-topic]="t.topicId">
+                  <span class="pi__stop pi__stop--row" role="group">
+                    <span class="pi__topic-visible" data-intro-visible aria-hidden="true">
+                      <span class="pi__row-visible">
+                        <span class="pi__name">{{ t.topicName }}</span>
+                        <span class="pi__figure">{{ t.percentage }}%</span>
+                      </span>
+                      <span class="pi__line">
+                        <span class="pi__detail">{{ t.correct }} / {{ t.total }} questions</span>
+                      </span>
+                    </span>
+                    <span [appIntroExposedText]="topicSpoken(t)" exposedTextMode="justify"></span>
+                  </span>
                 </li>
               }
             </ul>
           } @else {
-            <p class="pi__detail pi__detail--muted">
-              No topic qualifies yet. A topic needs at least {{ minAnswered }} answered questions
-              and {{ threshold }}% or better.
-            </p>
+            <span class="pi__line">
+              <span class="pi__stop" role="group">
+                <span class="pi__detail pi__detail--muted" data-intro-visible aria-hidden="true" data-intro-width-ref>
+                  No topic qualifies yet. A topic needs at least {{ minAnswered }} answered questions
+                  and {{ threshold }}% or better.
+                </span>
+                <span [appIntroExposedText]="noStrongestSpoken" exposedTextMode="cover" exposedTextBox="group" fitGroupWidth></span>
+              </span>
+            </span>
           }
         </section>
       }
@@ -114,12 +175,21 @@
         <section class="pi__section" aria-labelledby="pi-review-heading">
           <hr class="pi__divider" />
           <h3 id="pi-review-heading" class="pi__subheading" i18n>Needs Review</h3>
-          <ul class="pi__list">
+          <ul class="pi__list" role="none">
             @for (t of needsReview(); track t.topicId) {
-              <li class="pi__item" [attr.data-topic]="t.topicId">
-                <span class="pi__name">{{ t.topicName }}</span>
-                <span class="pi__figure">{{ t.percentage }}%</span>
-                <p class="pi__detail">{{ t.correct }} / {{ t.total }} questions</p>
+              <li class="pi__item pi__item--stacked" role="none" [attr.data-topic]="t.topicId">
+                <span class="pi__stop pi__stop--row" role="group">
+                  <span class="pi__topic-visible" data-intro-visible aria-hidden="true">
+                    <span class="pi__row-visible">
+                      <span class="pi__name">{{ t.topicName }}</span>
+                      <span class="pi__figure">{{ t.percentage }}%</span>
+                    </span>
+                    <span class="pi__line">
+                      <span class="pi__detail">{{ t.correct }} / {{ t.total }} questions</span>
+                    </span>
+                  </span>
+                  <span [appIntroExposedText]="topicSpoken(t)" exposedTextMode="justify"></span>
+                </span>
               </li>
             }
           </ul>
